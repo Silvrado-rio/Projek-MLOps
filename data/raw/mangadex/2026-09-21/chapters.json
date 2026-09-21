@@ -1,0 +1,33 @@
+{
+  "fetched_at": "2026-09-21T17:31:04.111274+00:00",
+  "source": "fallback_catalog",
+  "payload": {
+    "data": [
+      {
+        "manga_id": "demo-001",
+        "chapter_id": "demo-001-31",
+        "chapter_number": "31"
+      },
+      {
+        "manga_id": "demo-002",
+        "chapter_id": "demo-002-18",
+        "chapter_number": "18"
+      },
+      {
+        "manga_id": "demo-003",
+        "chapter_id": "demo-003-44",
+        "chapter_number": "44"
+      },
+      {
+        "manga_id": "demo-004",
+        "chapter_id": "demo-004-12",
+        "chapter_number": "12"
+      },
+      {
+        "manga_id": "demo-005",
+        "chapter_id": "demo-005-27",
+        "chapter_number": "27"
+      }
+    ]
+  }
+}
