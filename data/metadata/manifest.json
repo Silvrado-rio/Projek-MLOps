@@ -1,0 +1,23 @@
+{
+  "catalog_source": "fallback_catalog",
+  "metadata_file": "data/raw/mangadex/2026-09-21/chapters.json",
+  "comment_files": [
+    "data/raw/comments/2026-09-15/batch_001.jsonl",
+    "data/raw/comments/2026-09-16/batch_002.jsonl",
+    "data/raw/comments/2026-09-17/batch_003.jsonl",
+    "data/raw/comments/2026-09-18/batch_004.jsonl",
+    "data/raw/comments/2026-09-19/batch_005.jsonl",
+    "data/raw/comments/2026-09-20/batch_006.jsonl",
+    "data/raw/comments/2026-09-21/batch_007.jsonl"
+  ],
+  "total_events": 280,
+  "comments_are_synthetic": true,
+  "input_records": 280,
+  "valid_records": 280,
+  "rejected_records": 0,
+  "duplicate_records": 0,
+  "interim_file": "data/interim/comments_clean.csv",
+  "processed_file": "data/processed/chapter_sentiment_features.csv",
+  "processed_sha256": "04f0ca6d5255b9d9dfdef7310aed1e5f9f6398d1aec6a1fb71f939bf45a3bd2f",
+  "feature_rows": 35
+}

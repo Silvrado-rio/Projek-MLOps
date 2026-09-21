@@ -1,31 +1,54 @@
-# Projek-MLOps
+# Sistem Rekomendasi Manhwa Berbasis Tren Sentimen Komentar
 
-# Web Comic Recommendation System (MLOps)
+Repositori ini berisi pipeline data untuk proyek MLOps yang memberi peringkat kandidat rekomendasi berdasarkan perubahan sentimen komentar pada setiap chapter. MangaDex menyediakan metadata chapter, sedangkan komentar pada tahap perkuliahan ini merupakan data sintetis dan selalu ditandai dengan `synthetic: true`.
 
-Repositori ini berisi fondasi teknis dan *pipeline* Machine Learning Operations (MLOps) untuk pengembangan Sistem Rekomendasi Web Komik Berbasis *Clickstream* dan API.
+## Alur data
 
-## 🎯 Tujuan Proyek
-Tujuan dari proyek ini adalah membangun sistem rekomendasi yang bersifat dinamis (menggunakan *Continual Learning*) untuk mengatasi masalah *churn rate* pengguna dan *item cold-start* pada platform baca komik. Sistem ini secara periodik akan menarik data metadata komik terbaru via REST API publik (MangaDex API) dan memproses interaksi bacaan pengguna untuk melatih ulang bobot model rekomendasi secara otomatis.
+```text
+MangaDex API + simulator komentar
+              ↓
+        data/raw (JSON/JSONL)
+              ↓
+      validasi dan cleaning
+              ↓
+       data/interim (CSV)
+              ↓
+ feature engineering per chapter
+              ↓
+      data/processed (CSV)
+```
 
-## 📂 Struktur Direktori
-Struktur repositori ini mengadopsi standar konvensi *Cookiecutter Data Science*:
+Pipeline membentuk fitur `comment_count`, rasio sentimen, `sentiment_score`, `trend_delta`, dan `recency_weight`. Distribusi komentar berubah mulai batch kelima untuk mensimulasikan data drift.
 
-├── configs/   # File konfigurasi (YAML, JSON) untuk pipeline dan hyperparameter
-├── data/      # Folder penyimpanan raw data dan processed data (diabaikan oleh git)
-├── docs/      # Dokumentasi proyek, desain arsitektur, dan referensi
-├── models/    # Artefak model yang telah dilatih (pickles, weights)
-├── notebooks/ # Jupyter notebooks untuk eksplorasi data (EDA) dan prototipe awal
-├── src/       # Source code utama (data ingestion, preprocessing, training, serving)
-├── tests/     # Unit tests untuk menguji keandalan modul Python
-├── .gitignore
-├── requirements.txt
-└── README.md
+## Menjalankan pipeline
 
-## 🚀 Instruksi Penggunaan (Codespaces)
-Proyek ini dirancang agar *reproducible* tanpa perlu instalasi manual di perangkat lokal. Anda dapat langsung menjalankan *environment* ini menggunakan **GitHub Codespaces**.
+```bash
+python -m src.run_pipeline
+```
 
-1. Navigasi ke halaman utama repositori ini di GitHub.
-2. Klik tombol hijau **<> Code**.
-3. Pilih tab **Codespaces** dan klik **Create codespace on main**.
-4. Sistem akan secara otomatis menyiapkan *container* berbasis Python 3.10 dan menginstal seluruh dependensi yang ada pada `requirements.txt` berkat konfigurasi `.devcontainer`.
-5. Anda siap melakukan eksperimen melalui Jupyter Notebook di folder `notebooks/` atau menulis kode produksi di folder `src/`.
+Untuk menjalankan tanpa internet:
+
+```bash
+python -m src.run_pipeline --offline
+```
+
+Hasil utama berada di:
+
+- `data/raw/`: respons metadata dan event komentar mentah;
+- `data/interim/comments_clean.csv`: komentar yang lolos validasi;
+- `data/processed/chapter_sentiment_features.csv`: fitur siap digunakan model;
+- `data/metadata/quality_report.json`: jumlah record valid, ditolak, dan duplikat;
+- `data/metadata/manifest.json`: sumber, lokasi artefak, dan checksum dataset.
+
+Workflow `.github/workflows/ingest.yml` menjalankan pipeline setiap hari pukul 02.00 UTC atau 09.00 WIB. Pada tahap simulasi, setiap eksekusi membentuk jendela tujuh batch agar perubahan distribusi dapat diamati, lalu menyimpan hasilnya sebagai GitHub Actions artifact. Belum ada deployment model pada tahap ini.
+
+## Struktur penting
+
+```text
+configs/pipeline.json       parameter API dan simulasi
+src/ingest.py               extract metadata dan membentuk batch komentar
+src/validate.py             validasi, deduplikasi, dan cleaning
+src/transform.py            agregasi fitur dan manifest
+src/run_pipeline.py         entry point pipeline
+data/                       raw, interim, processed, dan metadata
+```
