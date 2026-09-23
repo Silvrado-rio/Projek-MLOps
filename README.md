@@ -32,6 +32,16 @@ Untuk menjalankan tanpa internet:
 python -m src.run_pipeline --offline
 ```
 
+Untuk mewajibkan metadata asli MangaDex dan membatalkan pipeline jika API tidak dapat diakses:
+
+```bash
+python -m src.run_pipeline --require-live-api
+```
+
+Periksa `catalog_source` pada `data/metadata/manifest.json`: nilai `mangadex_api`
+menandakan metadata live, sedangkan `fallback_catalog` menandakan katalog demo. Komentar
+pada tahap perkuliahan tetap sintetis pada kedua mode.
+
 Hasil utama berada di:
 
 - `data/raw/`: respons metadata dan event komentar mentah;
@@ -40,7 +50,7 @@ Hasil utama berada di:
 - `data/metadata/quality_report.json`: jumlah record valid, ditolak, dan duplikat;
 - `data/metadata/manifest.json`: sumber, lokasi artefak, dan checksum dataset.
 
-Workflow `.github/workflows/ingest.yml` menjalankan pipeline setiap hari pukul 02.00 UTC atau 09.00 WIB. Pada tahap simulasi, setiap eksekusi membentuk jendela tujuh batch agar perubahan distribusi dapat diamati, lalu menyimpan hasilnya sebagai GitHub Actions artifact. Belum ada deployment model pada tahap ini.
+Workflow `.github/workflows/ingest.yml` menjalankan pipeline setiap hari pukul 02.10 UTC atau 09.10 WIB dengan mode `--require-live-api`. Workflow akan gagal jika metadata asli MangaDex tidak dapat diambil sehingga fallback tidak pernah disimpan sebagai data live. Pada tahap simulasi, setiap eksekusi membentuk jendela tujuh batch agar perubahan distribusi dapat diamati, lalu menyimpan hasilnya sebagai GitHub Actions artifact. Belum ada deployment model pada tahap ini.
 
 ## Struktur penting
 

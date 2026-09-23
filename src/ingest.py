@@ -61,7 +61,11 @@ def _normalize_chapters(payload: dict) -> list[dict]:
     return chapters
 
 
-def fetch_chapters(settings: dict, offline: bool = False) -> tuple[list[dict], str, dict]:
+def fetch_chapters(
+    settings: dict,
+    offline: bool = False,
+    require_live_api: bool = False,
+) -> tuple[list[dict], str, dict]:
     if offline:
         return FALLBACK_CHAPTERS, "fallback_catalog", {"data": FALLBACK_CHAPTERS}
 
@@ -90,6 +94,11 @@ def fetch_chapters(settings: dict, offline: bool = False) -> tuple[list[dict], s
             print(f"[WARN] Percobaan MangaDex {attempt}/3 gagal: {error}")
             if attempt < 3:
                 time.sleep(2 ** (attempt - 1))
+    if require_live_api:
+        raise RuntimeError(
+            "MangaDex API tidak dapat diakses setelah tiga percobaan; "
+            "live ingestion dibatalkan agar data fallback tidak dianggap sebagai data asli."
+        )
     print("[WARN] Memakai katalog fallback setelah tiga percobaan.")
     return FALLBACK_CHAPTERS, "fallback_catalog", {"data": FALLBACK_CHAPTERS}
 
@@ -103,9 +112,12 @@ def ingest(
     mangadex: dict,
     simulation: dict,
     offline: bool = False,
+    require_live_api: bool = False,
 ) -> dict:
     now = datetime.now(timezone.utc)
-    chapters, catalog_source, payload = fetch_chapters(mangadex, offline)
+    chapters, catalog_source, payload = fetch_chapters(
+        mangadex, offline, require_live_api
+    )
 
     metadata_dir = output_root / "raw" / "mangadex" / now.date().isoformat()
     metadata_dir.mkdir(parents=True, exist_ok=True)
