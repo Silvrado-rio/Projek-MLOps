@@ -1,67 +1,124 @@
-"""Validate and clean raw synthetic comment events."""
+"""Normalize and validate MangaDex catalog, statistics, and chapter records."""
 
 from __future__ import annotations
 
 import json
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 
-REQUIRED = {
-    "event_id",
-    "batch_id",
-    "synthetic",
-    "manga_id",
-    "chapter_id",
-    "comment_text",
-    "sentiment_label",
-    "event_time",
-    "ingested_at",
-}
-ALLOWED_SENTIMENTS = {"positive", "neutral", "negative"}
+def _payload(path: str) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))["payload"]
 
 
-def _clean_text(text: str) -> str:
-    text = re.sub(r"https?://\S+", "<URL>", text)
-    return " ".join(text.split())
+def _title(attributes: dict) -> str:
+    titles = attributes.get("title") or {}
+    return titles.get("en") or titles.get("ko-ro") or next(iter(titles.values()), "Tanpa judul")
 
 
-def validate_and_clean(paths: list[str]) -> tuple[list[dict], list[dict], dict]:
-    valid_by_id: dict[str, dict] = {}
+def _rating_votes(distribution: dict | None) -> int | None:
+    if distribution is None:
+        return None
+    return sum(int(value) for value in distribution.values())
+
+
+def deduplicate_chapters(records: list[dict]) -> list[dict]:
+    earliest: dict[tuple[str, str, str], dict] = {}
+    for record in records:
+        chapter_key = record["chapter_number"] or record["chapter_id"]
+        key = (record["manga_id"], record["volume"] or "", chapter_key)
+        current = earliest.get(key)
+        if current is None or record["publish_at"] < current["publish_at"]:
+            earliest[key] = record
+    return sorted(earliest.values(), key=lambda row: (row["manga_id"], row["publish_at"], row["chapter_id"]))
+
+
+def validate_snapshot(ingestion: dict, max_invalid_ratio: float) -> tuple[list[dict], list[dict], list[dict], dict]:
+    catalog = _payload(ingestion["raw_files"]["catalog"])
+    statistics = _payload(ingestion["raw_files"]["statistics"]).get("statistics", {})
+    chapter_payload = _payload(ingestion["raw_files"]["chapters"])
+    valid_manga = []
     rejected = []
-    duplicate_count = 0
 
-    for path in paths:
-        with Path(path).open(encoding="utf-8") as stream:
-            for line_number, line in enumerate(stream, start=1):
-                try:
-                    event = json.loads(line)
-                    missing = REQUIRED - event.keys()
-                    event_time = datetime.fromisoformat(event["event_time"])
-                    ingested_at = datetime.fromisoformat(event["ingested_at"])
-                    if missing:
-                        raise ValueError(f"field hilang: {sorted(missing)}")
-                    if event["synthetic"] is not True:
-                        raise ValueError("synthetic harus true")
-                    if event["sentiment_label"] not in ALLOWED_SENTIMENTS:
-                        raise ValueError("sentiment tidak dikenal")
-                    if not str(event["comment_text"]).strip():
-                        raise ValueError("komentar kosong")
-                    if event_time > ingested_at + timedelta(minutes=5):
-                        raise ValueError("event_time melewati ingested_at")
-                    event["clean_text"] = _clean_text(event["comment_text"])
-                    if event["event_id"] in valid_by_id:
-                        duplicate_count += 1
-                    valid_by_id[event["event_id"]] = event
-                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
-                    rejected.append({"file": path, "line": line_number, "reason": str(error)})
+    for item in catalog.get("data", []):
+        try:
+            attributes = item["attributes"]
+            manga_id = item["id"]
+            if attributes.get("originalLanguage") != "ko":
+                raise ValueError("original_language bukan ko")
+            stats = statistics.get(manga_id)
+            if not stats:
+                raise ValueError("statistik manga tidak tersedia")
+            rating = stats.get("rating") or {}
+            comments = stats.get("comments") or {}
+            follows = int(stats.get("follows", 0))
+            replies = int(comments.get("repliesCount", 0))
+            if follows < 0 or replies < 0:
+                raise ValueError("nilai hitungan negatif")
+            valid_manga.append(
+                {
+                    "snapshot_date": ingestion["snapshot_date"],
+                    "fetched_at": ingestion["fetched_at"],
+                    "manga_id": manga_id,
+                    "title": _title(attributes),
+                    "original_language": "ko",
+                    "status": attributes.get("status"),
+                    "year": attributes.get("year"),
+                    "tags": "|".join(
+                        tag.get("attributes", {}).get("name", {}).get("en", "")
+                        for tag in attributes.get("tags", [])
+                    ),
+                    "content_rating": attributes.get("contentRating"),
+                    "follows": follows,
+                    "average_rating": rating.get("average"),
+                    "bayesian_rating": rating.get("bayesian"),
+                    "rating_votes": _rating_votes(rating.get("distribution")),
+                    "replies_count": replies,
+                }
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            rejected.append({"kind": "manga", "id": item.get("id"), "reason": str(error)})
 
-    valid = sorted(valid_by_id.values(), key=lambda event: (event["batch_id"], event["event_id"]))
+    chapters = []
+    known_ids = {row["manga_id"] for row in valid_manga}
+    for item in chapter_payload.get("data", []):
+        try:
+            attributes = item["attributes"]
+            manga_id = next(
+                relation["id"]
+                for relation in item.get("relationships", [])
+                if relation.get("type") == "manga"
+            )
+            if manga_id not in known_ids:
+                continue
+            publish_at = attributes["publishAt"]
+            datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
+            chapters.append(
+                {
+                    "manga_id": manga_id,
+                    "chapter_id": item["id"],
+                    "volume": attributes.get("volume"),
+                    "chapter_number": attributes.get("chapter"),
+                    "translated_language": attributes.get("translatedLanguage"),
+                    "publish_at": publish_at,
+                    "readable_at": attributes.get("readableAt"),
+                    "pages": attributes.get("pages"),
+                }
+            )
+        except (KeyError, StopIteration, TypeError, ValueError) as error:
+            rejected.append({"kind": "chapter", "id": item.get("id"), "reason": str(error)})
+
+    unique_chapters = deduplicate_chapters(chapters)
+    input_records = len(catalog.get("data", [])) + len(chapter_payload.get("data", []))
+    invalid_ratio = len(rejected) / input_records if input_records else 1.0
     report = {
-        "input_records": len(valid) + len(rejected) + duplicate_count,
-        "valid_records": len(valid),
+        "input_records": input_records,
+        "valid_manga": len(valid_manga),
+        "valid_unique_chapters": len(unique_chapters),
         "rejected_records": len(rejected),
-        "duplicate_records": duplicate_count,
+        "duplicate_chapters": len(chapters) - len(unique_chapters),
+        "invalid_ratio": round(invalid_ratio, 4),
     }
-    return valid, rejected, report
+    if not valid_manga or invalid_ratio > max_invalid_ratio:
+        raise RuntimeError(f"Quality gate gagal: {report}")
+    return valid_manga, unique_chapters, rejected, report

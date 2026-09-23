@@ -1,64 +1,69 @@
-# Sistem Rekomendasi Manhwa Berbasis Tren Sentimen Komentar
+# Sistem Pemeringkatan Manhwa Berbasis Tren Aktivitas MangaDex
 
-Repositori ini berisi pipeline data untuk proyek MLOps yang memberi peringkat kandidat rekomendasi berdasarkan perubahan sentimen komentar pada setiap chapter. MangaDex menyediakan metadata chapter, sedangkan komentar pada tahap perkuliahan ini merupakan data sintetis dan selalu ditandai dengan `synthetic: true`.
+Repositori ini berisi pipeline batch harian untuk memeringkat manhwa berdasarkan perubahan aktivitas komunitas dan pembaruan chapter di MangaDex. Katalog dibatasi pada karya dengan bahasa asli Korea (`originalLanguage[]=ko`). Bahasa terjemahan tidak menjadi filter karena pipeline hanya memakai metadata numerik, bukan teks chapter atau komentar.
+
+## Data yang diambil
+
+- `GET /manga`: identitas, judul, status, tahun, tag, dan content rating;
+- `GET /statistics/manga`: follows, rating, jumlah vote jika tersedia, dan `repliesCount`;
+- `GET /chapter`: volume, nomor chapter, bahasa terjemahan, `publishAt`, dan jumlah halaman.
+
+`repliesCount` hanya dipakai sebagai volume aktivitas komunitas, bukan analisis sentimen. Chapter dari bahasa atau grup berbeda dideduplikasi berdasarkan manga, volume, dan nomor chapter. `publishAt` paling awal dipertahankan sebagai waktu pertama kali chapter tersedia di MangaDex; nilai ini bukan tanggal rilis resmi di Korea.
 
 ## Alur data
 
 ```text
-MangaDex API + simulator komentar
-              ↓
-        data/raw (JSON/JSONL)
-              ↓
-      validasi dan cleaning
-              ↓
-       data/interim (CSV)
-              ↓
- feature engineering per chapter
-              ↓
-      data/processed (CSV)
+MangaDex API
+    ↓
+raw JSON bertanggal
+    ↓
+validasi dan deduplikasi
+    ↓
+snapshot harian + riwayat chapter
+    ↓
+fitur temporal dan target t+7
 ```
 
-Pipeline membentuk fitur `comment_count`, rasio sentimen, `sentiment_score`, `trend_delta`, dan `recency_weight`. Distribusi komentar berubah mulai batch kelima untuk mensimulasikan data drift.
+Pipeline menghasilkan fitur pertumbuhan follows, perubahan `repliesCount` dan rating, jumlah chapter unik tujuh hari, recency, serta rata-rata interval pembaruan. Dataset supervised baru berisi baris setelah snapshot t-7 dan t+7 tersedia.
 
 ## Menjalankan pipeline
 
-```bash
-python -m src.run_pipeline
-```
-
-Untuk menjalankan tanpa internet:
-
-```bash
-python -m src.run_pipeline --offline
-```
-
-Untuk mewajibkan metadata asli MangaDex dan membatalkan pipeline jika API tidak dapat diakses:
+Jalankan dari root repository:
 
 ```bash
 python -m src.run_pipeline --require-live-api
 ```
 
-Periksa `catalog_source` pada `data/metadata/manifest.json`: nilai `mangadex_api`
-menandakan metadata live, sedangkan `fallback_catalog` menandakan katalog demo. Komentar
-pada tahap perkuliahan tetap sintetis pada kedua mode.
+Mode live tidak pernah beralih diam-diam ke fixture. Jika API gagal setelah tiga percobaan, pipeline berhenti dan tidak menerbitkan versi processed baru.
 
-Hasil utama berada di:
+Untuk pengujian lokal tanpa jaringan:
 
-- `data/raw/`: respons metadata dan event komentar mentah;
-- `data/interim/comments_clean.csv`: komentar yang lolos validasi;
-- `data/processed/chapter_sentiment_features.csv`: fitur siap digunakan model;
-- `data/metadata/quality_report.json`: jumlah record valid, ditolak, dan duplikat;
-- `data/metadata/manifest.json`: sumber, lokasi artefak, dan checksum dataset.
-
-Workflow `.github/workflows/ingest.yml` menjalankan pipeline setiap hari pukul 02.10 UTC atau 09.10 WIB dengan mode `--require-live-api`. Workflow akan gagal jika metadata asli MangaDex tidak dapat diambil sehingga fallback tidak pernah disimpan sebagai data live. Pada tahap simulasi, setiap eksekusi membentuk jendela tujuh batch agar perubahan distribusi dapat diamati, lalu menyimpan hasilnya sebagai GitHub Actions artifact. Belum ada deployment model pada tahap ini.
-
-## Struktur penting
-
-```text
-configs/pipeline.json       parameter API dan simulasi
-src/ingest.py               extract metadata dan membentuk batch komentar
-src/validate.py             validasi, deduplikasi, dan cleaning
-src/transform.py            agregasi fitur dan manifest
-src/run_pipeline.py         entry point pipeline
-data/                       raw, interim, processed, dan metadata
+```bash
+python -m src.run_pipeline --offline --output-root tmp/offline-data
 ```
+
+Fixture offline hanya untuk pengujian dan ditandai dengan `catalog_source: offline_fixture` pada manifest.
+
+## Hasil utama
+
+- `data/raw/{catalog,statistics,chapters}/YYYY-MM-DD/`: respons API asli;
+- `data/interim/manga_daily_snapshots.csv`: satu observasi per manga per hari;
+- `data/interim/chapter_history.csv`: riwayat chapter unik lintas bahasa;
+- `data/processed/manga_trend_features.csv`: fitur yang telah memiliki histori dan target;
+- `data/quarantine/`: record yang gagal validasi;
+- `data/metadata/quality_report.json`: metrik kualitas batch;
+- `data/metadata/manifest.json`: sumber, versi schema, jumlah record, dan checksum.
+
+## Otomasi
+
+Workflow `.github/workflows/ingest.yml` berjalan setiap hari pukul 02.10 UTC atau 09.10 WIB. Histori dipulihkan dan disimpan pada branch `data-snapshots`, sedangkan hasil setiap run juga tersedia sebagai GitHub Actions artifact selama 14 hari. Branch data hanya dibuat oleh workflow setelah perubahan kode digabung dan workflow dijalankan.
+
+## Pengujian
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Pengujian memastikan kegagalan jaringan tidak memakai fixture, filter katalog hanya memilih bahasa asli Korea, dan duplikasi chapter lintas bahasa mempertahankan waktu ketersediaan paling awal.
+
+Proyek ini menggunakan API publik MangaDex untuk keperluan mata kuliah, tidak menampilkan isi chapter, dan tidak dimonetisasi. MangaDex tetap harus dicantumkan sebagai sumber data.

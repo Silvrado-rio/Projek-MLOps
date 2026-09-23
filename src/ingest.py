@@ -1,177 +1,174 @@
-"""Extract MangaDex metadata and create explicitly synthetic comment batches."""
+"""Fetch live Korean-origin manga metadata from MangaDex."""
 
 from __future__ import annotations
 
 import json
-import random
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 
-COMMENTS = {
-    "positive": [
-        "Chapter ini seru banget, alurnya makin bagus.",
-        "Art dan pertarungannya keren, tidak sabar lanjut.",
-        "Perkembangan karakternya terasa memuaskan.",
-        "Akhir chapter-nya bagus dan bikin penasaran.",
-    ],
-    "neutral": [
-        "Chapter berikutnya rilis kapan?",
-        "Bagian ini menjelaskan latar belakang karakter utama.",
-        "Saya baru selesai membaca chapter ini.",
-        "Alurnya mulai masuk ke konflik baru.",
-    ],
-    "negative": [
-        "Chapter ini terasa terlalu lambat dan bertele-tele.",
-        "Keputusan karakter utamanya tidak masuk akal.",
-        "Art-nya menurun dibandingkan chapter sebelumnya.",
-        "Akhir chapter ini mengecewakan.",
-    ],
+USER_AGENT = "UB-MLOps-Coursework/2.0"
+
+OFFLINE_PAYLOADS = {
+    "catalog": {
+        "data": [
+            {
+                "id": "demo-manga-1",
+                "attributes": {
+                    "title": {"en": "Demo Manhwa"},
+                    "originalLanguage": "ko",
+                    "status": "ongoing",
+                    "year": 2024,
+                    "tags": [{"attributes": {"name": {"en": "Action"}}}],
+                    "contentRating": "safe",
+                },
+            }
+        ]
+    },
+    "statistics": {
+        "statistics": {
+            "demo-manga-1": {
+                "rating": {"average": 8.2, "bayesian": 7.8, "distribution": {"8": 10, "9": 5}},
+                "follows": 120,
+                "comments": {"repliesCount": 7},
+            }
+        }
+    },
+    "chapters": {
+        "data": [
+            {
+                "id": "demo-chapter-en",
+                "attributes": {
+                    "volume": "1",
+                    "chapter": "10",
+                    "translatedLanguage": "en",
+                    "publishAt": "2024-01-01T00:00:00+00:00",
+                    "readableAt": "2024-01-01T00:00:00+00:00",
+                    "pages": 20,
+                },
+                "relationships": [{"id": "demo-manga-1", "type": "manga"}],
+            },
+            {
+                "id": "demo-chapter-id",
+                "attributes": {
+                    "volume": "1",
+                    "chapter": "10",
+                    "translatedLanguage": "id",
+                    "publishAt": "2024-01-02T00:00:00+00:00",
+                    "readableAt": "2024-01-02T00:00:00+00:00",
+                    "pages": 20,
+                },
+                "relationships": [{"id": "demo-manga-1", "type": "manga"}],
+            },
+        ]
+    },
 }
 
-FALLBACK_CHAPTERS = [
-    {"manga_id": "demo-001", "chapter_id": "demo-001-31", "chapter_number": "31"},
-    {"manga_id": "demo-002", "chapter_id": "demo-002-18", "chapter_number": "18"},
-    {"manga_id": "demo-003", "chapter_id": "demo-003-44", "chapter_number": "44"},
-    {"manga_id": "demo-004", "chapter_id": "demo-004-12", "chapter_number": "12"},
-    {"manga_id": "demo-005", "chapter_id": "demo-005-27", "chapter_number": "27"},
-]
 
-
-def _normalize_chapters(payload: dict) -> list[dict]:
-    chapters = []
-    for item in payload.get("data", []):
-        manga = next(
-            (relation for relation in item.get("relationships", []) if relation.get("type") == "manga"),
-            {},
-        )
-        attributes = item.get("attributes", {})
-        chapters.append(
-            {
-                "manga_id": manga.get("id", "unknown"),
-                "chapter_id": item["id"],
-                "chapter_number": attributes.get("chapter") or "N/A",
-                "translated_language": attributes.get("translatedLanguage", "id"),
-                "publish_at": attributes.get("publishAt"),
-            }
-        )
-    return chapters
-
-
-def fetch_chapters(
-    settings: dict,
-    offline: bool = False,
-    require_live_api: bool = False,
-) -> tuple[list[dict], str, dict]:
-    if offline:
-        return FALLBACK_CHAPTERS, "fallback_catalog", {"data": FALLBACK_CHAPTERS}
-
-    params = urllib.parse.urlencode(
-        [
-            ("limit", str(settings["limit"])),
-            ("translatedLanguage[]", settings["translated_language"]),
-            ("includes[]", "manga"),
-            ("order[publishAt]", "desc"),
-            ("contentRating[]", "safe"),
-            ("contentRating[]", "suggestive"),
-        ]
-    )
+def _request_json(url: str, params: list[tuple[str, str]], timeout: int) -> dict:
     request = urllib.request.Request(
-        f"{settings['endpoint']}?{params}",
-        headers={"User-Agent": "UB-MLOps-Coursework/1.0"},
+        f"{url}?{urllib.parse.urlencode(params)}",
+        headers={"User-Agent": USER_AGENT},
     )
+    last_error: Exception | None = None
     for attempt in range(1, 4):
         try:
-            with urllib.request.urlopen(request, timeout=settings["timeout_seconds"]) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = json.load(response)
-            chapters = _normalize_chapters(payload)
-            if chapters:
-                return chapters, "mangadex_api", payload
-        except (OSError, TimeoutError, ValueError, KeyError) as error:
+            if payload.get("result") not in (None, "ok"):
+                raise ValueError(f"respons API tidak sukses: {payload.get('result')}")
+            return payload
+        except (OSError, TimeoutError, ValueError, json.JSONDecodeError) as error:
+            last_error = error
             print(f"[WARN] Percobaan MangaDex {attempt}/3 gagal: {error}")
             if attempt < 3:
                 time.sleep(2 ** (attempt - 1))
-    if require_live_api:
-        raise RuntimeError(
-            "MangaDex API tidak dapat diakses setelah tiga percobaan; "
-            "live ingestion dibatalkan agar data fallback tidak dianggap sebagai data asli."
+    raise RuntimeError("MangaDex API tidak dapat diakses setelah tiga percobaan") from last_error
+
+
+def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
+    if offline:
+        return OFFLINE_PAYLOADS
+
+    base_url = settings["base_url"].rstrip("/")
+    timeout = settings["timeout_seconds"]
+    catalog = _request_json(
+        f"{base_url}/manga",
+        [
+            ("limit", str(settings["catalog_limit"])),
+            ("originalLanguage[]", "ko"),
+            ("order[updatedAt]", "desc"),
+            ("contentRating[]", "safe"),
+            ("contentRating[]", "suggestive"),
+        ],
+        timeout,
+    )
+    manga_ids = [item["id"] for item in catalog.get("data", [])]
+    if not manga_ids:
+        raise RuntimeError("Katalog manhwa MangaDex kosong")
+
+    statistics = _request_json(
+        f"{base_url}/statistics/manga",
+        [("manga[]", manga_id) for manga_id in manga_ids],
+        timeout,
+    )
+    chapter_params = [
+        ("limit", str(settings["chapter_limit"])),
+        ("order[publishAt]", "desc"),
+        ("includes", "manga"),
+        ("contentRating[]", "safe"),
+        ("contentRating[]", "suggestive"),
+    ]
+    chapter_params.extend(("manga", manga_id) for manga_id in manga_ids)
+    chapter_pages = []
+    chapter_data = []
+    total = 0
+    for page_number in range(settings.get("chapter_max_pages", 1)):
+        page = _request_json(
+            f"{base_url}/chapter",
+            chapter_params + [("offset", str(page_number * settings["chapter_limit"]))],
+            timeout,
         )
-    print("[WARN] Memakai katalog fallback setelah tiga percobaan.")
-    return FALLBACK_CHAPTERS, "fallback_catalog", {"data": FALLBACK_CHAPTERS}
+        chapter_pages.append(page)
+        records = page.get("data", [])
+        chapter_data.extend(records)
+        total = int(page.get("total", len(chapter_data)))
+        if len(records) < settings["chapter_limit"] or len(chapter_data) >= total:
+            break
+        time.sleep(0.25)
+    chapters = {"result": "ok", "data": chapter_data, "total": total, "pages": chapter_pages}
+    return {"catalog": catalog, "statistics": statistics, "chapters": chapters}
 
 
-def _weights(batch_number: int, drift_starts_on_batch: int) -> list[float]:
-    return [0.62, 0.25, 0.13] if batch_number < drift_starts_on_batch else [0.34, 0.25, 0.41]
+def ingest(output_root: Path, settings: dict, offline: bool = False) -> dict:
+    fetched_at = datetime.now(timezone.utc)
+    payloads = fetch_mangadex(settings, offline)
+    source = "offline_fixture" if offline else "mangadex_api"
+    paths = {}
+    filenames = {"catalog": "catalog.json", "statistics": "statistics.json", "chapters": "chapters.json"}
 
-
-def ingest(
-    output_root: Path,
-    mangadex: dict,
-    simulation: dict,
-    offline: bool = False,
-    require_live_api: bool = False,
-) -> dict:
-    now = datetime.now(timezone.utc)
-    chapters, catalog_source, payload = fetch_chapters(
-        mangadex, offline, require_live_api
-    )
-
-    metadata_dir = output_root / "raw" / "mangadex" / now.date().isoformat()
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    (metadata_dir / "chapters.json").write_text(
-        json.dumps(
-            {"fetched_at": now.isoformat(), "source": catalog_source, "payload": payload},
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-    rng = random.Random(simulation["seed"])
-    labels = list(COMMENTS)
-    batches = simulation["batches"]
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=batches - 1)
-    written_files = []
-
-    for offset in range(batches):
-        batch_number = offset + 1
-        batch_time = start + timedelta(days=offset)
-        batch_dir = output_root / "raw" / "comments" / batch_time.date().isoformat()
-        batch_dir.mkdir(parents=True, exist_ok=True)
-        batch_path = batch_dir / f"batch_{batch_number:03d}.jsonl"
-        with batch_path.open("w", encoding="utf-8") as stream:
-            for index in range(simulation["comments_per_batch"]):
-                chapter = rng.choice(chapters)
-                label = rng.choices(
-                    labels,
-                    weights=_weights(batch_number, simulation["drift_starts_on_batch"]),
-                    k=1,
-                )[0]
-                seconds_available = 86_399
-                if batch_time.date() == now.date():
-                    seconds_available = max(0, int((now - batch_time).total_seconds()))
-                event = {
-                    "event_id": f"{batch_time:%Y%m%d}-{index:04d}",
-                    "batch_id": batch_time.date().isoformat(),
-                    "source": "synthetic_comment_simulation",
-                    "synthetic": True,
-                    "user_id": f"user_{rng.randint(1, 120):03d}",
-                    **chapter,
-                    "comment_text": rng.choice(COMMENTS[label]),
-                    "sentiment_label": label,
-                    "event_time": (batch_time + timedelta(seconds=rng.randint(0, seconds_available))).isoformat(),
-                    "ingested_at": now.isoformat(),
-                }
-                stream.write(json.dumps(event, ensure_ascii=False) + "\n")
-        written_files.append(str(batch_path))
+    for name, payload in payloads.items():
+        raw_dir = output_root / "raw" / name / fetched_at.date().isoformat()
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        path = raw_dir / filenames[name]
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(
+                {"fetched_at": fetched_at.isoformat(), "source": source, "payload": payload},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+        paths[name] = str(path)
 
     return {
-        "catalog_source": catalog_source,
-        "metadata_file": str(metadata_dir / "chapters.json"),
-        "comment_files": written_files,
-        "total_events": batches * simulation["comments_per_batch"],
-        "comments_are_synthetic": True,
+        "catalog_source": source,
+        "snapshot_date": fetched_at.date().isoformat(),
+        "fetched_at": fetched_at.isoformat(),
+        "raw_files": paths,
     }

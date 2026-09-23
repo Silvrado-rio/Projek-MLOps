@@ -1,4 +1,4 @@
-"""Run the complete LK-03 data pipeline."""
+"""Run the complete manhwa trend data pipeline."""
 
 from __future__ import annotations
 
@@ -11,37 +11,23 @@ from .transform import transform
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Pipeline data komentar chapter manhwa.")
+    parser = argparse.ArgumentParser(
+        description="Pipeline tren aktivitas komunitas dan pembaruan manhwa MangaDex."
+    )
     parser.add_argument("--config", type=Path, default=Path("configs/pipeline.json"))
     parser.add_argument("--output-root", type=Path, default=Path("data"))
-    parser.add_argument("--batches", type=int)
-    parser.add_argument("--comments-per-batch", type=int)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--offline", action="store_true", help="Gunakan katalog fallback tanpa API.")
+    mode.add_argument("--offline", action="store_true", help="Gunakan fixture lokal untuk pengujian.")
     mode.add_argument(
         "--require-live-api",
         action="store_true",
-        help="Batalkan pipeline jika metadata asli MangaDex tidak dapat diambil.",
+        help="Gunakan API live; pipeline tetap gagal bila API tidak dapat diakses.",
     )
     args = parser.parse_args()
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    simulation = config["simulation"]
-    if args.batches is not None:
-        simulation["batches"] = args.batches
-    if args.comments_per_batch is not None:
-        simulation["comments_per_batch"] = args.comments_per_batch
-    if simulation["batches"] < 1 or simulation["comments_per_batch"] < 1:
-        parser.error("batches dan comments-per-batch harus lebih dari nol")
-
-    ingestion = ingest(
-        args.output_root,
-        config["mangadex"],
-        simulation,
-        args.offline,
-        args.require_live_api,
-    )
-    manifest = transform(args.output_root, ingestion)
+    ingestion = ingest(args.output_root, config["mangadex"], offline=args.offline)
+    manifest = transform(args.output_root, ingestion, config["quality"])
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
 
 
