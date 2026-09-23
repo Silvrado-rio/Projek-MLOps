@@ -6,21 +6,51 @@ on:
     - cron: "10 2 * * *"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.10"
-      - name: Run daily pipeline with live MangaDex metadata
+      - name: Restore historical snapshots
+        shell: bash
+        run: |
+          git fetch origin data-snapshots || true
+          if git show-ref --verify --quiet refs/remotes/origin/data-snapshots; then
+            git archive origin/data-snapshots data | tar -x || true
+          fi
+      - name: Run pipeline tests
+        run: python -m unittest discover -s tests -v
+      - name: Run daily pipeline with live MangaDex data
         run: python -m src.run_pipeline --require-live-api
+      - name: Persist snapshot history on the data branch
+        shell: bash
+        run: |
+          cp -R data "$RUNNER_TEMP/pipeline-data"
+          git reset --hard
+          git clean -fd
+          if git show-ref --verify --quiet refs/remotes/origin/data-snapshots; then
+            git switch -C data-snapshots origin/data-snapshots
+          else
+            git switch --orphan data-snapshots
+            git rm -rf . || true
+          fi
+          rm -rf data
+          cp -R "$RUNNER_TEMP/pipeline-data" data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "data: snapshot ${GITHUB_RUN_ID}"
+          git push origin data-snapshots
       - name: Keep the generated data as a workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: chapter-sentiment-data-${{ github.run_id }}
+          name: manhwa-trend-data-${{ github.run_id }}
           path: data/
           retention-days: 14

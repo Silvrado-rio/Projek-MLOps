@@ -1,14 +1,12 @@
 {
   "mangadex": {
-    "endpoint": "https://api.mangadex.org/chapter",
-    "limit": 10,
-    "translated_language": "id",
+    "base_url": "https://api.mangadex.org",
+    "catalog_limit": 50,
+    "chapter_limit": 100,
+    "chapter_max_pages": 5,
     "timeout_seconds": 20
   },
-  "simulation": {
-    "batches": 7,
-    "comments_per_batch": 40,
-    "drift_starts_on_batch": 5,
-    "seed": 42
+  "quality": {
+    "max_invalid_ratio": 0.05
   }
 }

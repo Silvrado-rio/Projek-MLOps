@@ -1,8 +1,1 @@
-pandas
-numpy
-scikit-learn
-requests
-fastapi
-uvicorn
-mlflow
-jupyter
+# Pipeline saat ini hanya menggunakan Python standard library.
