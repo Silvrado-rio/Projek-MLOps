@@ -1,0 +1,25 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-09-23T18:09:33.823392+00:00",
+  "catalog_source": "mangadex_api",
+  "snapshot_date": "2026-09-23",
+  "fetched_at": "2026-09-23T18:08:57.087452+00:00",
+  "raw_files": {
+    "catalog": "data/raw/catalog/2026-09-23/catalog.json",
+    "statistics": "data/raw/statistics/2026-09-23/statistics.json",
+    "chapters": "data/raw/chapters/2026-09-23/chapters.json"
+  },
+  "input_records": 368,
+  "valid_manga": 50,
+  "valid_unique_chapters": 311,
+  "rejected_records": 0,
+  "duplicate_chapters": 7,
+  "invalid_ratio": 0.0,
+  "snapshot_rows": 50,
+  "chapter_history_rows": 311,
+  "feature_rows": 0,
+  "interim_file": "data/interim/manga_daily_snapshots.csv",
+  "chapter_history_file": "data/interim/chapter_history.csv",
+  "processed_file": "data/processed/manga_trend_features.csv",
+  "processed_sha256": "404f704d1917c2d4dc6e96fb1ab344115e374d75d60e47ec138abdb5e090dbb2"
+}
