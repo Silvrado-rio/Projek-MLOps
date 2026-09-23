@@ -72,6 +72,8 @@ class PipelineTest(unittest.TestCase):
             [["demo-manga-1"], ["demo-manga-2"]],
         )
         for call in chapter_calls:
+            self.assertIn(("includes[]", "manga"), call.args[1])
+            self.assertNotIn("includes", {name for name, _value in call.args[1]})
             self.assertNotIn("translatedLanguage[]", {name for name, _value in call.args[1]})
 
     def test_chapter_dedup_keeps_first_mangadex_availability(self):

@@ -129,7 +129,7 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
     chapter_params = [
         ("limit", str(settings["chapter_limit"])),
         ("order[publishAt]", "desc"),
-        ("includes", "manga"),
+        ("includes[]", "manga"),
         ("contentRating[]", "safe"),
         ("contentRating[]", "suggestive"),
     ]
