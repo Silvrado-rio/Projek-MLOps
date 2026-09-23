@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -81,6 +82,16 @@ def _request_json(url: str, params: list[tuple[str, str]], timeout: int) -> dict
             if payload.get("result") not in (None, "ok"):
                 raise ValueError(f"respons API tidak sukses: {payload.get('result')}")
             return payload
+        except urllib.error.HTTPError as error:
+            details = error.read().decode("utf-8", errors="replace").strip()
+            message = f"HTTP {error.code} dari {url}: {details or error.reason}"
+            if error.code != 429:
+                raise RuntimeError(message) from error
+            last_error = RuntimeError(message)
+            print(f"[WARN] Percobaan MangaDex {attempt}/3 gagal: {message}")
+            if attempt < 3:
+                retry_after = error.headers.get("Retry-After")
+                time.sleep(int(retry_after) if retry_after and retry_after.isdigit() else 2 ** (attempt - 1))
         except (OSError, TimeoutError, ValueError, json.JSONDecodeError) as error:
             last_error = error
             print(f"[WARN] Percobaan MangaDex {attempt}/3 gagal: {error}")
@@ -122,24 +133,27 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
         ("contentRating[]", "safe"),
         ("contentRating[]", "suggestive"),
     ]
-    chapter_params.extend(("manga", manga_id) for manga_id in manga_ids)
     chapter_pages = []
     chapter_data = []
-    total = 0
-    for page_number in range(settings.get("chapter_max_pages", 1)):
+    matched_total = 0
+    for index, manga_id in enumerate(manga_ids):
         page = _request_json(
             f"{base_url}/chapter",
-            chapter_params + [("offset", str(page_number * settings["chapter_limit"]))],
+            chapter_params + [("manga", manga_id)],
             timeout,
         )
         chapter_pages.append(page)
-        records = page.get("data", [])
-        chapter_data.extend(records)
-        total = int(page.get("total", len(chapter_data)))
-        if len(records) < settings["chapter_limit"] or len(chapter_data) >= total:
-            break
-        time.sleep(0.25)
-    chapters = {"result": "ok", "data": chapter_data, "total": total, "pages": chapter_pages}
+        chapter_data.extend(page.get("data", []))
+        matched_total += int(page.get("total", 0))
+        if index < len(manga_ids) - 1:
+            time.sleep(0.25)
+    chapters = {
+        "result": "ok",
+        "data": chapter_data,
+        "total": len(chapter_data),
+        "matched_total": matched_total,
+        "pages": chapter_pages,
+    }
     return {"catalog": catalog, "statistics": statistics, "chapters": chapters}
 
 
