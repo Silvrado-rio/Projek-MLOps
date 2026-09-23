@@ -2,8 +2,7 @@
   "mangadex": {
     "base_url": "https://api.mangadex.org",
     "catalog_limit": 50,
-    "chapter_limit": 100,
-    "chapter_max_pages": 5,
+    "chapter_limit": 20,
     "timeout_seconds": 20
   },
   "quality": {

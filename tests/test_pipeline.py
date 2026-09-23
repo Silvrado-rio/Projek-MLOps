@@ -6,6 +6,8 @@ import csv
 import math
 import tempfile
 import unittest
+import urllib.error
+from io import BytesIO
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -19,7 +21,6 @@ SETTINGS = {
     "base_url": "https://api.mangadex.org",
     "catalog_limit": 2,
     "chapter_limit": 10,
-    "chapter_max_pages": 1,
     "timeout_seconds": 1,
 }
 
@@ -34,19 +35,44 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "setelah tiga percobaan"):
             fetch_mangadex(SETTINGS)
 
+    @patch("src.ingest.urllib.request.urlopen")
+    def test_http_400_reports_response_without_retry(self, urlopen):
+        urlopen.side_effect = urllib.error.HTTPError(
+            "https://api.mangadex.org/chapter",
+            400,
+            "Bad Request",
+            {},
+            BytesIO(b'{"errors":[{"detail":"invalid manga id"}]}'),
+        )
+        with self.assertRaisesRegex(RuntimeError, "HTTP 400.*invalid manga id"):
+            fetch_mangadex(SETTINGS)
+        self.assertEqual(urlopen.call_count, 1)
+
+    @patch("src.ingest.time.sleep")
     @patch("src.ingest._request_json")
-    def test_live_requests_korean_catalog_without_translation_filter(self, request_json):
+    def test_live_requests_one_manga_per_chapter_call(self, request_json, _sleep):
+        catalog = {
+            "data": [
+                OFFLINE_PAYLOADS["catalog"]["data"][0],
+                {"id": "demo-manga-2", "attributes": {"originalLanguage": "ko"}},
+            ]
+        }
         request_json.side_effect = [
-            OFFLINE_PAYLOADS["catalog"],
+            catalog,
             OFFLINE_PAYLOADS["statistics"],
             OFFLINE_PAYLOADS["chapters"],
+            {"data": [], "total": 0},
         ]
         fetch_mangadex(SETTINGS)
         catalog_params = request_json.call_args_list[0].args[1]
-        chapter_params = request_json.call_args_list[2].args[1]
         self.assertIn(("originalLanguage[]", "ko"), catalog_params)
-        self.assertNotIn("translatedLanguage[]", {name for name, _value in chapter_params})
-        self.assertIn(("manga", "demo-manga-1"), chapter_params)
+        chapter_calls = request_json.call_args_list[2:]
+        self.assertEqual(
+            [[value for name, value in call.args[1] if name == "manga"] for call in chapter_calls],
+            [["demo-manga-1"], ["demo-manga-2"]],
+        )
+        for call in chapter_calls:
+            self.assertNotIn("translatedLanguage[]", {name for name, _value in call.args[1]})
 
     def test_chapter_dedup_keeps_first_mangadex_availability(self):
         records = [
