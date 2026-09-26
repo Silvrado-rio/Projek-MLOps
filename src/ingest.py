@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 
 USER_AGENT = "UB-MLOps-Coursework/2.0"
@@ -159,19 +160,19 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
 
 def ingest(output_root: Path, settings: dict, offline: bool = False) -> dict:
     fetched_at = datetime.now(timezone.utc)
+    run_id = f"{fetched_at.strftime('%H%M%S.%fZ')}-{uuid4().hex}"
     payloads = fetch_mangadex(settings, offline)
     source = "offline_fixture" if offline else "mangadex_api"
     paths = {}
-    filenames = {"catalog": "catalog.json", "statistics": "statistics.json", "chapters": "chapters.json"}
 
     for name, payload in payloads.items():
         raw_dir = output_root / "raw" / name / fetched_at.date().isoformat()
         raw_dir.mkdir(parents=True, exist_ok=True)
-        path = raw_dir / filenames[name]
+        path = raw_dir / f"{name}-{run_id}.json"
         temporary = path.with_suffix(".tmp")
         temporary.write_text(
             json.dumps(
-                {"fetched_at": fetched_at.isoformat(), "source": source, "payload": payload},
+                {"run_id": run_id, "fetched_at": fetched_at.isoformat(), "source": source, "payload": payload},
                 ensure_ascii=False,
                 indent=2,
             ),
@@ -181,6 +182,7 @@ def ingest(output_root: Path, settings: dict, offline: bool = False) -> dict:
         paths[name] = str(path)
 
     return {
+        "run_id": run_id,
         "catalog_source": source,
         "snapshot_date": fetched_at.date().isoformat(),
         "fetched_at": fetched_at.isoformat(),
