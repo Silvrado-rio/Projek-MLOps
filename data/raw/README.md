@@ -1,4 +1,4 @@
-# Sampel raw MangaDex untuk LK-04
+# Sampel raw MangaDex
 
 Tiga file `*-sample.json` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
 
@@ -12,7 +12,7 @@ Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-
 
 Record individual dipertahankan sesuai sumber, termasuk nilai null, ID, waktu, dan bahasa. Hanya record manga lain serta metadata pagination dan salinan `pages` gabungan yang tidak disertakan. Field tambahan `sample` mencatat commit, path asal, ID manga, dan metode seleksi. `source: mangadex_api` serta `fetched_at` berasal dari pengambilan asli; sampel ini bukan hasil request baru atau fixture sintetis.
 
-Sampel sengaja kecil agar dapat diperiksa bersama kode pada branch eksperimen. Histori lengkap tetap berada di branch `data-snapshots`. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
+Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. Histori lengkap berada di branch `data-snapshots`. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
 
 ## Memverifikasi sampel
 
@@ -29,5 +29,3 @@ Pengujian pengambilan berulang dengan perubahan statistik dijalankan oleh seluru
 ```bash
 python -m unittest discover -s tests -v
 ```
-
-Percobaan ingestion live baru dari mesin lokal saat pengerjaan LK-04 gagal karena `CERTIFICATE_VERIFY_FAILED` dengan hostname mismatch. Karena itu, sampel memakai hasil live terdahulu yang dapat ditelusuri. Tidak ada penonaktifan verifikasi TLS atau penggantian data live dengan fixture.

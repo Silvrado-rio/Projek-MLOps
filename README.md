@@ -44,9 +44,9 @@ python -m src.run_pipeline --offline --output-root tmp/offline-data
 
 Fixture offline hanya untuk pengujian dan ditandai dengan `catalog_source: offline_fixture` pada manifest.
 
-## Implementasi LK-04
+## Modul pipeline
 
-Nama dan struktur modul mengikuti rancangan LK-03:
+Pipeline dibagi menjadi modul pengambilan, validasi, transformasi, dan eksekusi:
 
 | Tahap | Modul | Tanggung jawab |
 |---|---|---|
@@ -55,15 +55,15 @@ Nama dan struktur modul mengikuti rancangan LK-03:
 | Transformasi | `src/transform.py` | Menggabungkan snapshot harian dan riwayat chapter, lalu menghitung fitur temporal ketika histori mencukupi. |
 | Eksekusi otomatis | `src/run_pipeline.py` | Menjalankan ingestion dan prapemrosesan berurutan dengan konfigurasi yang sama. |
 
-Data yang diolah berupa metadata numerik dan waktu. Tokenization dan stopword removal tidak diperlukan. Rating, jumlah vote, tahun, dan informasi chapter yang tidak tersedia tetap kosong; nilai tersebut tidak diisi angka nol atau dibuat-buat. `comments` yang kosong dipetakan menjadi `replies_count = 0`. Record yang melanggar aturan validasi dipisahkan ke karantina pada batch yang lolos quality gate. Batch ditolak jika tidak ada manga valid atau rasio record invalid melebihi 5 persen.
+Data yang diolah berupa metadata numerik dan waktu. Rating, jumlah vote, tahun, dan informasi chapter yang tidak tersedia tetap kosong; nilai tersebut tidak diisi angka nol atau dibuat-buat. `comments` yang kosong dipetakan menjadi `replies_count = 0`. Record yang melanggar aturan validasi dipisahkan ke karantina pada batch yang lolos quality gate. Batch ditolak jika tidak ada manga valid atau rasio record invalid melebihi 5 persen.
 
 ### Simulasi pengambilan berulang
 
 Jalankan perintah berikut dua kali pada tanggal yang sama:
 
 ```bash
-python -m src.run_pipeline --require-live-api --output-root tmp/lk04-live
-python -m src.run_pipeline --require-live-api --output-root tmp/lk04-live
+python -m src.run_pipeline --require-live-api --output-root tmp/live-data
+python -m src.run_pipeline --require-live-api --output-root tmp/live-data
 ```
 
 Setiap eksekusi membuat tiga raw JSON baru dengan pola:
@@ -76,7 +76,7 @@ Waktu menggunakan UTC. UUID membedakan run sekalipun pembacaan jamnya identik. `
 
 Setelah dua run berhasil pada direktori output baru, terdapat enam raw JSON. Pada tabel interim, pasangan `snapshot_date` dan `manga_id` tetap unik: observasi tanggal yang sama diperbarui oleh batch valid terbaru, sedangkan observasi tanggal sebelumnya tetap tersimpan. Riwayat chapter digabung dan dideduplikasi. Manifest dan quality report pada direktori output menunjukkan batch terbaru.
 
-Untuk simulasi tanpa jaringan, ganti `--require-live-api` dengan `--offline` dan gunakan output terpisah seperti `tmp/lk04-offline`. Folder `tmp/` tidak dilacak Git agar fixture tidak tercampur dengan sampel live yang dikumpulkan.
+Untuk simulasi tanpa jaringan, ganti `--require-live-api` dengan `--offline` dan gunakan output terpisah seperti `tmp/offline-data`. Folder `tmp/` tidak dilacak Git agar fixture tidak tercampur dengan sampel live yang dikumpulkan.
 
 Cuplikan raw dari ingestion live 26 September 2026 disertakan di `data/raw/`; asal commit dan cara pemilihannya dijelaskan dalam [catatan sampel](data/raw/README.md). Sampel ini tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
 
@@ -106,4 +106,4 @@ python -m unittest discover -s tests -v
 
 Pengujian memastikan kegagalan jaringan tidak memakai fixture, filter katalog hanya memilih bahasa asli Korea, dan duplikasi chapter lintas bahasa mempertahankan waktu ketersediaan paling awal. Uji pengambilan berulang juga memeriksa raw lama tidak berubah meskipun waktu pengambilan sama, snapshot tanggal sebelumnya tetap tersedia, serta satu judul tidak berulang pada tanggal yang sama di interim.
 
-Proyek ini menggunakan API publik MangaDex untuk keperluan mata kuliah, tidak menampilkan isi chapter, dan tidak dimonetisasi. MangaDex tetap harus dicantumkan sebagai sumber data.
+Proyek ini menggunakan API publik MangaDex, tidak menampilkan isi chapter, dan tidak dimonetisasi. MangaDex tetap harus dicantumkan sebagai sumber data.
