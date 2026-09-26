@@ -78,8 +78,6 @@ Setelah dua run berhasil pada direktori output baru, terdapat enam raw JSON. Pad
 
 Untuk simulasi tanpa jaringan, ganti `--require-live-api` dengan `--offline` dan gunakan output terpisah seperti `tmp/offline-data`. Folder `tmp/` tidak dilacak Git agar fixture tidak tercampur dengan sampel live yang dikumpulkan.
 
-Cuplikan raw dari ingestion live 26 September 2026 disertakan di `data/raw/`; asal commit dan cara pemilihannya dijelaskan dalam [catatan sampel](data/raw/README.md). Sampel ini tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
-
 ### Kesiapan data untuk continual learning
 
 Prapemrosesan sudah menghasilkan snapshot harian dan riwayat chapter meskipun `manga_trend_features.csv` masih berisi header. Satu baris supervised baru ditulis jika judul yang sama memiliki snapshot `t-7`, `t`, dan `t+7`. Karena itu, data awal memerlukan rentang minimal 14 hari antara snapshot pertama dan terakhir. Pipeline ini menyiapkan data untuk pelatihan berikutnya; pelatihan ulang model belum dijalankan oleh workflow ingestion.
@@ -94,6 +92,24 @@ Prapemrosesan sudah menghasilkan snapshot harian dan riwayat chapter meskipun `m
 - `data/metadata/quality_report.json`: metrik kualitas batch;
 - `data/metadata/manifest.json`: ID run, waktu pengambilan, path raw, sumber, versi schema, jumlah record, dan checksum processed.
 
+## Sampel data
+
+Tiga file `*-sample.json` di `data/raw/` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
+
+Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-rio/Projek-MLOps/tree/5e56130ea03ecd7e7d124eeade3e793c2ca4f840/data/raw).
+
+| File | Isi |
+|---|---|
+| [catalog-sample.json](data/raw/catalog/2026-09-26/catalog-sample.json) | Satu record katalog manhwa. |
+| [statistics-sample.json](data/raw/statistics/2026-09-26/statistics-sample.json) | Statistik untuk ID manhwa yang sama. |
+| [chapters-sample.json](data/raw/chapters/2026-09-26/chapters-sample.json) | Enam record chapter milik manhwa tersebut yang tersedia dalam batch sumber. |
+
+Record individual dipertahankan sesuai sumber, termasuk nilai null, ID, waktu, dan bahasa. Hanya record manga lain serta metadata pagination dan salinan `pages` gabungan yang tidak disertakan. Field tambahan `sample` mencatat commit, path asal, ID manga, dan metode seleksi. `source: mangadex_api` serta `fetched_at` berasal dari pengambilan asli; sampel ini bukan hasil request baru atau fixture sintetis.
+
+Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. Histori lengkap berada di branch `data-snapshots`. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
+
+Sampel tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
+
 ## Otomasi
 
 Workflow `.github/workflows/ingest.yml` berjalan setiap hari pukul 02.10 UTC atau 09.10 WIB. Histori dipulihkan dan disimpan pada branch `data-snapshots`, sedangkan hasil setiap run juga tersedia sebagai GitHub Actions artifact selama 14 hari. Branch data hanya dibuat oleh workflow setelah perubahan kode digabung dan workflow dijalankan.
@@ -105,5 +121,13 @@ python -m unittest discover -s tests -v
 ```
 
 Pengujian memastikan kegagalan jaringan tidak memakai fixture, filter katalog hanya memilih bahasa asli Korea, dan duplikasi chapter lintas bahasa mempertahankan waktu ketersediaan paling awal. Uji pengambilan berulang juga memeriksa raw lama tidak berubah meskipun waktu pengambilan sama, snapshot tanggal sebelumnya tetap tersedia, serta satu judul tidak berulang pada tanggal yang sama di interim.
+
+Untuk memverifikasi prapemrosesan sampel saja:
+
+```bash
+python -m unittest tests.test_pipeline.PipelineTest.test_committed_live_sample_can_be_preprocessed_repeatedly -v
+```
+
+Pengujian memproses ketiga file sampel dua kali di direktori sementara tanpa jaringan. Raw tidak berubah, snapshot harian tidak berlipat, dan checksum processed tetap sama. Nilai `rating_votes` yang tidak disediakan API tetap kosong. File fitur belum memiliki baris karena sampel hanya mencakup satu tanggal.
 
 Proyek ini menggunakan API publik MangaDex, tidak menampilkan isi chapter, dan tidak dimonetisasi. MangaDex tetap harus dicantumkan sebagai sumber data.
