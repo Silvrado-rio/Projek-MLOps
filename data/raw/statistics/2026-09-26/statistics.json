@@ -1,0 +1,549 @@
+{
+  "fetched_at": "2026-09-26T07:35:41.057976+00:00",
+  "source": "mangadex_api",
+  "payload": {
+    "result": "ok",
+    "statistics": {
+      "590ce306-df89-4cec-94c3-886d01422174": {
+        "comments": {
+          "threadId": 842157,
+          "repliesCount": 368
+        },
+        "follows": 25613,
+        "rating": {
+          "average": 7.963,
+          "bayesian": 7.9808461419407655
+        },
+        "unavailableChaptersCount": 59
+      },
+      "fe7d5dbe-6f0a-42ed-9a83-67a4315bd3ee": {
+        "comments": {
+          "threadId": 1642788,
+          "repliesCount": 5
+        },
+        "follows": 5114,
+        "rating": {
+          "average": 8.3877,
+          "bayesian": 8.327163320326234
+        },
+        "unavailableChaptersCount": 0
+      },
+      "a972aebe-50fb-4dfe-8f61-0150f3659467": {
+        "comments": {
+          "threadId": 996147,
+          "repliesCount": 12
+        },
+        "follows": 9918,
+        "rating": {
+          "average": 8.766,
+          "bayesian": 8.650169908219556
+        },
+        "unavailableChaptersCount": 38
+      },
+      "d2a01e38-1c0d-4e4b-a9ae-21d119e8b326": {
+        "comments": {
+          "threadId": 1138866,
+          "repliesCount": 29
+        },
+        "follows": 11366,
+        "rating": {
+          "average": 8.6787,
+          "bayesian": 8.617180359008747
+        },
+        "unavailableChaptersCount": 363
+      },
+      "412ab8fe-eca9-47c9-8f5c-f6deb75622e9": {
+        "comments": {
+          "threadId": 478878,
+          "repliesCount": 607
+        },
+        "follows": 46987,
+        "rating": {
+          "average": 8.7132,
+          "bayesian": 8.68601561320172
+        },
+        "unavailableChaptersCount": 92
+      },
+      "56691e99-ca6d-4360-bae1-0a0dfb85866b": {
+        "comments": {
+          "threadId": 1940700,
+          "repliesCount": 7
+        },
+        "follows": 4942,
+        "rating": {
+          "average": 8.6699,
+          "bayesian": 8.50556814706439
+        },
+        "unavailableChaptersCount": 0
+      },
+      "0ab7ae56-2800-4426-819d-0cda91aad12a": {
+        "comments": {
+          "threadId": 1454413,
+          "repliesCount": 0
+        },
+        "follows": 496,
+        "rating": {
+          "average": 7.0667,
+          "bayesian": 7.913871036359202
+        },
+        "unavailableChaptersCount": 25
+      },
+      "bbed470c-5ca5-45ec-8101-474323387734": {
+        "comments": {
+          "threadId": 2711499,
+          "repliesCount": 12
+        },
+        "follows": 10184,
+        "rating": {
+          "average": 7.8018,
+          "bayesian": 7.859147642192536
+        },
+        "unavailableChaptersCount": 0
+      },
+      "23ddcbae-7074-4f07-bd23-08177bf31412": {
+        "comments": null,
+        "follows": 117,
+        "rating": {
+          "average": 9,
+          "bayesian": 8.145875243955718
+        },
+        "unavailableChaptersCount": 0
+      },
+      "ae0b0102-1adf-4fbe-a87b-04dd2fdde0ca": {
+        "comments": {
+          "threadId": 2645826,
+          "repliesCount": 0
+        },
+        "follows": 440,
+        "rating": {
+          "average": 8,
+          "bayesian": 8.092897892722874
+        },
+        "unavailableChaptersCount": 0
+      },
+      "db1f4c31-f92f-4f4f-a8c6-fc898e432888": {
+        "comments": {
+          "threadId": 1839745,
+          "repliesCount": 6
+        },
+        "follows": 4428,
+        "rating": {
+          "average": 9.0583,
+          "bayesian": 8.801335559330589
+        },
+        "unavailableChaptersCount": 0
+      },
+      "dd16dbbc-c317-4f62-8cf5-3525b4083aab": {
+        "comments": {
+          "threadId": 2722983,
+          "repliesCount": 1
+        },
+        "follows": 1272,
+        "rating": {
+          "average": 8.4512,
+          "bayesian": 8.244788469774395
+        },
+        "unavailableChaptersCount": 0
+      },
+      "00cbb62b-b002-464d-bda7-8e650338417e": {
+        "comments": {
+          "threadId": 2731149,
+          "repliesCount": 2
+        },
+        "follows": 542,
+        "rating": {
+          "average": 8.8605,
+          "bayesian": 8.300631190411416
+        },
+        "unavailableChaptersCount": 0
+      },
+      "6ebc38c9-367a-4fba-ab36-ad9a957ee7d1": {
+        "comments": {
+          "threadId": 2732712,
+          "repliesCount": 0
+        },
+        "follows": 215,
+        "rating": {
+          "average": 9.1176,
+          "bayesian": 8.323511718768575
+        },
+        "unavailableChaptersCount": 0
+      },
+      "6a50ffeb-9678-47b4-868e-15fe0febe188": {
+        "comments": {
+          "threadId": 279759,
+          "repliesCount": 8
+        },
+        "follows": 910,
+        "rating": {
+          "average": 8.2785,
+          "bayesian": 8.175858318083053
+        },
+        "unavailableChaptersCount": 6
+      },
+      "105c2a3e-0235-44a4-9b8c-42ae2c555e4e": {
+        "comments": {
+          "threadId": 1379719,
+          "repliesCount": 0
+        },
+        "follows": 338,
+        "rating": {
+          "average": 6.6667,
+          "bayesian": 8.017489002568396
+        },
+        "unavailableChaptersCount": 0
+      },
+      "429d98fa-1352-4adf-94d1-969efafec386": {
+        "comments": {
+          "threadId": 1839721,
+          "repliesCount": 1
+        },
+        "follows": 370,
+        "rating": {
+          "average": 8.1429,
+          "bayesian": 8.116779734751427
+        },
+        "unavailableChaptersCount": 3
+      },
+      "0017ab16-4f1f-452a-99d2-5f7dec895a67": {
+        "comments": {
+          "threadId": 2734326,
+          "repliesCount": 2
+        },
+        "follows": 45,
+        "rating": {
+          "average": 7.5,
+          "bayesian": 8.103073865357635
+        },
+        "unavailableChaptersCount": 0
+      },
+      "39872c85-0375-4f6d-b333-213944337971": {
+        "comments": null,
+        "follows": 3,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "e24d2233-6fe7-4766-8074-d25671522da9": {
+        "comments": null,
+        "follows": 3,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "84805b94-6eeb-42ff-abb7-b2d8614c2804": {
+        "comments": null,
+        "follows": 43,
+        "rating": {
+          "average": 8.5,
+          "bayesian": 8.124246176822163
+        },
+        "unavailableChaptersCount": 0
+      },
+      "b6f9aaad-6787-460c-bbb8-af9eb7bcc3e0": {
+        "comments": {
+          "threadId": 1528010,
+          "repliesCount": 7
+        },
+        "follows": 6001,
+        "rating": {
+          "average": 8.5919,
+          "bayesian": 8.503481970967067
+        },
+        "unavailableChaptersCount": 0
+      },
+      "024daabd-a693-4f77-8d6a-7fd82e8b94f5": {
+        "comments": {
+          "threadId": 2267976,
+          "repliesCount": 14
+        },
+        "follows": 1979,
+        "rating": {
+          "average": 9.0533,
+          "bayesian": 8.620220902065096
+        },
+        "unavailableChaptersCount": 0
+      },
+      "9cfa0ad8-5c01-4d03-823d-117470f540d7": {
+        "comments": {
+          "threadId": 2054277,
+          "repliesCount": 0
+        },
+        "follows": 373,
+        "rating": {
+          "average": 8.1111,
+          "bayesian": 8.11232871765042
+        },
+        "unavailableChaptersCount": 0
+      },
+      "3fc74fb2-ae93-4bb0-b912-a4c5d5f7b594": {
+        "comments": {
+          "threadId": 1782449,
+          "repliesCount": 9
+        },
+        "follows": 4112,
+        "rating": {
+          "average": 8.9305,
+          "bayesian": 8.702450715544828
+        },
+        "unavailableChaptersCount": 0
+      },
+      "0db0c050-597e-4068-92e2-e57ea98d86b7": {
+        "comments": null,
+        "follows": 5,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "7a020035-69b2-41eb-89d6-bca97cb729df": {
+        "comments": null,
+        "follows": 165,
+        "rating": {
+          "average": 6.8,
+          "bayesian": 8.017362231926858
+        },
+        "unavailableChaptersCount": 0
+      },
+      "c22759b2-f492-471c-a80f-37e672cfb3b4": {
+        "comments": null,
+        "follows": 6,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "f0aee247-e44a-48b1-a00c-194043e43829": {
+        "comments": null,
+        "follows": 142,
+        "rating": {
+          "average": 9.2143,
+          "bayesian": 8.221159029511123
+        },
+        "unavailableChaptersCount": 0
+      },
+      "135907b0-f623-4b4e-9024-959102905508": {
+        "comments": {
+          "threadId": 816972,
+          "repliesCount": 5
+        },
+        "follows": 490,
+        "rating": {
+          "average": 7.3182,
+          "bayesian": 7.995967238475291
+        },
+        "unavailableChaptersCount": 30
+      },
+      "5a0b8181-1fe1-4f59-8b0b-60e720a3326c": {
+        "comments": null,
+        "follows": 4,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "5c78dcc5-0393-457d-9e4f-3fde40ef1014": {
+        "comments": null,
+        "follows": 13,
+        "rating": {
+          "average": 8,
+          "bayesian": 8.11076866914732
+        },
+        "unavailableChaptersCount": 0
+      },
+      "d87c0ba8-de4b-4e71-a278-816d6a1c5805": {
+        "comments": {
+          "threadId": 1240909,
+          "repliesCount": 3
+        },
+        "follows": 1750,
+        "rating": {
+          "average": 8.3838,
+          "bayesian": 8.23085899225338
+        },
+        "unavailableChaptersCount": 48
+      },
+      "bc890658-888f-41b1-a333-07cb5f5f3625": {
+        "comments": null,
+        "follows": 15,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "2057c712-1d9b-48a1-ba8f-541756209036": {
+        "comments": null,
+        "follows": 14,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "7da0c452-6d40-44db-80a5-9bc8baf558f1": {
+        "comments": {
+          "threadId": 2183988,
+          "repliesCount": 3
+        },
+        "follows": 2482,
+        "rating": {
+          "average": 8.4135,
+          "bayesian": 8.265925172394706
+        },
+        "unavailableChaptersCount": 24
+      },
+      "999f8fac-db53-48cc-9030-1c0ad19c9812": {
+        "comments": null,
+        "follows": 39,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "2c4c69a9-0f92-4af9-b22b-5ae66c934c32": {
+        "comments": null,
+        "follows": 42,
+        "rating": {
+          "average": 6.25,
+          "bayesian": 8.05604256946767
+        },
+        "unavailableChaptersCount": 0
+      },
+      "fcea68c1-e1fb-41bd-8eb0-3cd8d6d97e7e": {
+        "comments": {
+          "threadId": 2715366,
+          "repliesCount": 1
+        },
+        "follows": 126,
+        "rating": {
+          "average": 8.125,
+          "bayesian": 8.113235522185564
+        },
+        "unavailableChaptersCount": 0
+      },
+      "9258cef1-3b0a-4a02-bccc-7e34580c5c2b": {
+        "comments": {
+          "threadId": 1141941,
+          "repliesCount": 0
+        },
+        "follows": 4843,
+        "rating": {
+          "average": 7.3942,
+          "bayesian": 7.622834205513238
+        },
+        "unavailableChaptersCount": 52
+      },
+      "0e117066-f6e7-44a7-a31f-34bf27b4e3fa": {
+        "comments": null,
+        "follows": 81,
+        "rating": {
+          "average": 7.2,
+          "bayesian": 8.078184608327222
+        },
+        "unavailableChaptersCount": 0
+      },
+      "fa6793c8-7523-4f4a-93a1-1f44fd8110c4": {
+        "comments": {
+          "threadId": 1269796,
+          "repliesCount": 0
+        },
+        "follows": 926,
+        "rating": {
+          "average": 7.8374,
+          "bayesian": 7.977666589746281
+        },
+        "unavailableChaptersCount": 0
+      },
+      "bdf3be62-4fcf-4190-be5a-cf0bc1f3d120": {
+        "comments": {
+          "threadId": 2153847,
+          "repliesCount": 0
+        },
+        "follows": 211,
+        "rating": {
+          "average": 7.2222,
+          "bayesian": 8.05399659043837
+        },
+        "unavailableChaptersCount": 0
+      },
+      "e7a92445-d4ee-411a-8680-17dfd699ee5f": {
+        "comments": null,
+        "follows": 60,
+        "rating": {
+          "average": null,
+          "bayesian": 8.04959183829508
+        },
+        "unavailableChaptersCount": 0
+      },
+      "becc3f3f-4d73-4fe6-a1d1-d7c67c3c285d": {
+        "comments": {
+          "threadId": 2186790,
+          "repliesCount": 0
+        },
+        "follows": 329,
+        "rating": {
+          "average": 7.65,
+          "bayesian": 8.049982186494528
+        },
+        "unavailableChaptersCount": 0
+      },
+      "8367fa34-d0b2-480f-bc0d-66307099174b": {
+        "comments": null,
+        "follows": 45,
+        "rating": {
+          "average": 10,
+          "bayesian": 8.127136567669405
+        },
+        "unavailableChaptersCount": 0
+      },
+      "7b93ac7f-410e-4431-b92d-1ce2a6f13f10": {
+        "comments": null,
+        "follows": 162,
+        "rating": {
+          "average": 8.125,
+          "bayesian": 8.113235522185564
+        },
+        "unavailableChaptersCount": 0
+      },
+      "7609c582-6361-436a-a09f-a273079eff1a": {
+        "comments": null,
+        "follows": 10,
+        "rating": {
+          "average": 7.5,
+          "bayesian": 8.103073865357635
+        },
+        "unavailableChaptersCount": 0
+      },
+      "aa81f925-593c-4e84-8277-c6cc683eb85f": {
+        "comments": null,
+        "follows": 191,
+        "rating": {
+          "average": 8.2222,
+          "bayesian": 8.11971024860432
+        },
+        "unavailableChaptersCount": 0
+      },
+      "b00ca6fd-4fab-4c8f-a981-4a89cefc5d89": {
+        "comments": {
+          "threadId": 1034568,
+          "repliesCount": 255
+        },
+        "follows": 36943,
+        "rating": {
+          "average": 8.9417,
+          "bayesian": 8.885275459404287
+        },
+        "unavailableChaptersCount": 3
+      }
+    }
+  }
+}
