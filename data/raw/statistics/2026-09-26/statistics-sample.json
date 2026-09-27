@@ -1,0 +1,28 @@
+{
+  "fetched_at": "2026-09-26T07:35:41.057976+00:00",
+  "source": "mangadex_api",
+  "sample": {
+    "source_commit": "5e56130ea03ecd7e7d124eeade3e793c2ca4f840",
+    "source_path": "data/raw/statistics/2026-09-26/statistics.json",
+    "manga_ids": [
+      "0017ab16-4f1f-452a-99d2-5f7dec895a67"
+    ],
+    "selection": "Subset of original records; individual records are unchanged. Pagination metadata and duplicate pages omitted."
+  },
+  "payload": {
+    "statistics": {
+      "0017ab16-4f1f-452a-99d2-5f7dec895a67": {
+        "comments": {
+          "threadId": 2734326,
+          "repliesCount": 2
+        },
+        "follows": 45,
+        "rating": {
+          "average": 7.5,
+          "bayesian": 8.103073865357635
+        },
+        "unavailableChaptersCount": 0
+      }
+    }
+  }
+}

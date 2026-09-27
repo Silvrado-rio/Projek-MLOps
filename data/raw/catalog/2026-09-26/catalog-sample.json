@@ -1,0 +1,171 @@
+{
+  "fetched_at": "2026-09-26T07:35:41.057976+00:00",
+  "source": "mangadex_api",
+  "sample": {
+    "source_commit": "5e56130ea03ecd7e7d124eeade3e793c2ca4f840",
+    "source_path": "data/raw/catalog/2026-09-26/catalog.json",
+    "manga_ids": [
+      "0017ab16-4f1f-452a-99d2-5f7dec895a67"
+    ],
+    "selection": "Subset of original records; individual records are unchanged. Pagination metadata and duplicate pages omitted."
+  },
+  "payload": {
+    "data": [
+      {
+        "id": "0017ab16-4f1f-452a-99d2-5f7dec895a67",
+        "type": "manga",
+        "attributes": {
+          "title": {
+            "ko-ro": "Save the Earth!"
+          },
+          "altTitles": [
+            {
+              "ko": "세이브 디 어스!"
+            },
+            {
+              "en": "Save the Earth!"
+            },
+            {
+              "en": "Save the Us!"
+            }
+          ],
+          "description": {
+            "en": "A series of Kang Ha-ram's crazy school life— survive, Kang Ha-ram!"
+          },
+          "isLocked": false,
+          "links": {
+            "raw": "https://comic.naver.com/webtoon/list?titleId=840092&page=1&sort=DESC&tab=sat"
+          },
+          "officialLinks": null,
+          "originalLanguage": "ko",
+          "lastVolume": "",
+          "lastChapter": "",
+          "publicationDemographic": null,
+          "status": "ongoing",
+          "year": 2025,
+          "contentRating": "safe",
+          "tags": [
+            {
+              "id": "3e2b8dae-350e-4ab8-a8ce-016e844b9f0d",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Long Strip"
+                },
+                "description": {},
+                "group": "format",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "423e2eae-a7a2-4a8b-ac03-a8351462d71d",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Romance"
+                },
+                "description": {},
+                "group": "genre",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "4d32cc48-9f00-4cca-9b5a-a839f0764984",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Comedy"
+                },
+                "description": {},
+                "group": "genre",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "b9af3a63-f058-46de-a9a0-e0c13906197a",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Drama"
+                },
+                "description": {},
+                "group": "genre",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "caaa44eb-cd40-4177-b930-79d3ef2afe87",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "School Life"
+                },
+                "description": {},
+                "group": "theme",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "e5301a23-ebd9-49dd-a0cb-2add944c7fe9",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Slice of Life"
+                },
+                "description": {},
+                "group": "genre",
+                "version": 1
+              },
+              "relationships": []
+            },
+            {
+              "id": "f5ba408b-0e7a-484d-8d49-4e9125ac96de",
+              "type": "tag",
+              "attributes": {
+                "name": {
+                  "en": "Full Color"
+                },
+                "description": {},
+                "group": "format",
+                "version": 1
+              },
+              "relationships": []
+            }
+          ],
+          "state": "published",
+          "chapterNumbersResetOnNewVolume": false,
+          "createdAt": "2026-09-17T16:44:55+00:00",
+          "updatedAt": "2026-09-18T15:10:28+00:00",
+          "version": 4,
+          "availableTranslatedLanguages": [
+            "en"
+          ],
+          "latestUploadedChapter": "a8246c8e-4eec-4d65-8c78-0d57903095ca"
+        },
+        "relationships": [
+          {
+            "id": "e37f45bb-2026-4789-ae11-5f7b5e77c925",
+            "type": "author"
+          },
+          {
+            "id": "e37f45bb-2026-4789-ae11-5f7b5e77c925",
+            "type": "artist"
+          },
+          {
+            "id": "578ac687-791e-40db-8acd-e3ba9254a98e",
+            "type": "cover_art"
+          },
+          {
+            "id": "0583a96f-7015-458e-ab9c-f040129bc075",
+            "type": "creator"
+          }
+        ]
+      }
+    ]
+  }
+}
