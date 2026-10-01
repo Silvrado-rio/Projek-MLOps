@@ -1,7 +1,7 @@
 {
-  "input_records": 442,
+  "input_records": 466,
   "valid_manga": 50,
-  "valid_unique_chapters": 373,
+  "valid_unique_chapters": 397,
   "rejected_records": 0,
   "duplicate_chapters": 19,
   "invalid_ratio": 0.0
