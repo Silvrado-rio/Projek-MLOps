@@ -10,6 +10,14 @@ Repositori ini berisi pipeline batch harian untuk memeringkat manhwa berdasarkan
 
 `repliesCount` hanya dipakai sebagai volume aktivitas komunitas, bukan analisis sentimen. Chapter dari bahasa atau grup berbeda dideduplikasi berdasarkan manga, volume, dan nomor chapter. `publishAt` paling awal dipertahankan sebagai waktu pertama kali chapter tersedia di MangaDex; nilai ini bukan tanggal rilis resmi di Korea.
 
+### Cohort pengamatan tetap
+
+Target pengamatan adalah **200 ID tetap**. Konfigurasi memuat 142 ID yang sudah muncul dalam riwayat sampai 9 Oktober 2026, termasuk 50 ID dari konfigurasi awal. Run live pertama melengkapi daftar tersebut dengan 58 ID tambahan dari katalog Korea ber-rating `safe`/`suggestive`, diurutkan menurut pembaruan terbaru. Pencarian dan pengambilan katalog dibagi menjadi halaman maksimal 100 record.
+
+Setelah batch pertama berhasil, daftar lengkap disimpan di `data/metadata/tracked_manga_ids.json` dan dilacak DVC. Run berikutnya memakai daftar tersimpan, sehingga urutan pembaruan katalog tidak mengganti anggota sampel. ID katalog atau statistik yang hilang menghentikan pengambilan batch; pipeline tidak mengganti ID tersebut dengan judul baru. Perubahan ukuran cohort harus dilakukan secara sengaja bersama migrasi daftar tersimpan.
+
+Angka 200 merupakan batas praktis pengumpulan, bukan hasil perhitungan keterwakilan populasi. Metadata chapter tetap dibatasi 20 record terbaru per ID per run. ID tambahan belum memiliki histori dua minggu; baris supervised hanya tersedia setelah ID yang sama memiliki snapshot pada `t-7`, `t`, dan `t+7`.
+
 ## Alur data
 
 ```text
@@ -28,7 +36,14 @@ Pipeline menghasilkan fitur pertumbuhan follows, perubahan `repliesCount` dan ra
 
 ## Menjalankan pipeline
 
-Gunakan Python 3.10 atau lebih baru dari terminal Codespaces, Dev Container, atau lokal. Pipeline hanya memakai standard library Python, sehingga tidak memerlukan instalasi paket tambahan. Jalankan dari root repository; folder output dibuat otomatis:
+Gunakan Python 3.10 atau lebih baru dari terminal Codespaces, Dev Container, atau lokal. Ingestion dan transformasi memakai standard library; DVC dengan backend Google Drive diperlukan untuk memulihkan dan menyimpan versi dataset. Jalankan dari root repository:
+
+```bash
+python -m pip install -r requirements.txt
+dvc pull
+```
+
+`dvc pull` memerlukan konfigurasi OAuth lokal atau secrets pada Actions, seperti dijelaskan di bawah. Setelah histori dipulihkan:
 
 ```bash
 python -m src.run_pipeline --require-live-api
@@ -100,19 +115,78 @@ Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-
 
 | File | Isi |
 |---|---|
-| [catalog-sample.json](data/raw/catalog/2026-09-26/catalog-sample.json) | Satu record katalog manhwa. |
-| [statistics-sample.json](data/raw/statistics/2026-09-26/statistics-sample.json) | Statistik untuk ID manhwa yang sama. |
-| [chapters-sample.json](data/raw/chapters/2026-09-26/chapters-sample.json) | Enam record chapter milik manhwa tersebut yang tersedia dalam batch sumber. |
+| `catalog-sample.json` | Satu record katalog manhwa. |
+| `statistics-sample.json` | Statistik untuk ID manhwa yang sama. |
+| `chapters-sample.json` | Enam record chapter milik manhwa tersebut yang tersedia dalam batch sumber. |
 
 Record individual dipertahankan sesuai sumber, termasuk nilai null, ID, waktu, dan bahasa. Hanya record manga lain serta metadata pagination dan salinan `pages` gabungan yang tidak disertakan. Field tambahan `sample` mencatat commit, path asal, ID manga, dan metode seleksi. `source: mangadex_api` serta `fetched_at` berasal dari pengambilan asli; sampel ini bukan hasil request baru atau fixture sintetis.
 
-Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. Histori lengkap berada di branch `data-snapshots`. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
+Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. File sampel dan histori lengkap sekarang dipulihkan dari remote DVC dengan `dvc pull`. Branch `data-snapshots` menyimpan pointer versi terbaru; commit lama yang memuat data langsung tetap dipertahankan. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
 
 Sampel tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
 
 ## Otomasi
 
-Workflow `.github/workflows/ingest.yml` berjalan setiap hari pukul 02.10 UTC atau 09.10 WIB. Histori dipulihkan dan disimpan pada branch `data-snapshots`, sedangkan hasil setiap run juga tersedia sebagai GitHub Actions artifact selama 14 hari. Branch data hanya dibuat oleh workflow setelah perubahan kode digabung dan workflow dijalankan.
+Workflow `.github/workflows/ingest.yml` berjalan setiap hari pukul 02.10 UTC atau 09.10 WIB. Workflow memasang DVC, memulihkan pointer terbaru dari `data-snapshots`, menjalankan `dvc pull`, menguji pipeline, mengambil observasi live, lalu menjalankan `dvc add` dan `dvc push`. Pointer baru baru di-commit ke branch data setelah upload berhasil. Eksekusi bersamaan diserialkan agar tidak menimpa versi satu sama lain.
+
+Pada migrasi pertama, histori Git lama dipulihkan setelah baseline DVC untuk mempertahankan pengambilan yang terjadi setelah baseline dibuat. Raw dan CSV tidak ditambahkan lagi ke Git; versi selanjutnya menyimpan cache di Drive. Commit lama di branch data tidak dihapus atau ditulis ulang. Hasil dan audit setiap run tersedia sebagai GitHub Actions artifact selama 14 hari.
+
+### Google Drive dan kredensial
+
+Remote default `drive` menggunakan folder Google Drive yang tercantum pada `.dvc/config`. Folder tetap privat. Akun pribadi menggunakan OAuth pengguna, bukan service account tanpa kuota penyimpanan. Buat OAuth client bertipe **Desktop app** pada proyek Google Cloud dengan Drive API aktif dan scope `https://www.googleapis.com/auth/drive` serta `https://www.googleapis.com/auth/drive.appdata`.
+
+Client ID, client secret, dan lokasi kredensial pengguna dikonfigurasi secara lokal. Contoh PowerShell setelah environment variable disiapkan di komputer sendiri:
+
+```powershell
+dvc remote modify --local drive gdrive_client_id $env:GDRIVE_CLIENT_ID
+dvc remote modify --local drive gdrive_client_secret $env:GDRIVE_CLIENT_SECRET
+dvc remote modify --local drive gdrive_user_credentials_file C:/path/private/gdrive-user-credentials.json
+dvc push
+```
+
+Penggunaan `--local` menyimpan nilai di `.dvc/config.local`, yang diabaikan Git. File OAuth client JSON yang diunduh dari Google berbeda dari file kredensial pengguna yang dibuat setelah login browser. Jangan commit atau menampilkan kedua file tersebut dalam log atau screenshot.
+
+Sebelum menjalankan Actions, tambahkan secrets berikut melalui **Settings → Secrets and variables → Actions**:
+
+| Secret | Nilai |
+|---|---|
+| `GDRIVE_CLIENT_ID` | `client_id` dari OAuth client Desktop. |
+| `GDRIVE_CLIENT_SECRET` | `client_secret` dari OAuth client Desktop. |
+| `GDRIVE_CREDENTIALS_DATA` | Seluruh JSON kredensial pengguna hasil login PyDrive2/DVC; bukan JSON OAuth client. |
+
+Status OAuth **Testing** dengan scope Drive menghasilkan refresh token yang berlaku tujuh hari. Untuk pengumpulan berkelanjutan, selesaikan pengaturan Branding, ubah Audience ke **In production**, lalu autentikasi ulang sebelum mengisi secret token. Token tetap dapat dicabut atau kedaluwarsa karena kondisi lain. Aplikasi untuk penggunaan pribadi memiliki pengecualian verifikasi; perubahan status tidak menjamin semua pemeriksaan Google dilewati.
+
+Halaman aplikasi, privasi, dan ketentuan tersedia sebagai HTML statis pada `docs/`. Publikasikan melalui GitHub Pages sebelum memasukkan URL-nya pada Branding. Homepage harus menautkan kedua halaman kebijakan; jika Google meminta verifikasi domain, selesaikan melalui Search Console untuk domain yang dikelola pemilik proyek. Halaman HTML lokal saja belum merupakan URL publik.
+
+Referensi: [remote Google Drive DVC](https://doc.dvc.org/user-guide/data-management/remote-storage/google-drive), [masa berlaku token OAuth](https://developers.google.com/identity/protocols/oauth2), dan [pengaturan Branding Google](https://support.google.com/cloud/answer/15549049?hl=en).
+
+### Penambahan dan audit versi dataset
+
+DVC sudah diinisialisasi pada repository. Versi awal berasal dari commit `a906ada11b838c75663d63d2fe133244a83e3600` di branch data, berisi 850 snapshot harian, 142 ID unik, dan 877 chapter unik. Raw, interim, processed, metadata, serta quarantine masing-masing memiliki pointer `.dvc`; cache lokal dan data aktual diabaikan Git.
+
+Untuk menambah versi di komputer yang sudah diautentikasi:
+
+```bash
+dvc pull
+python -m src.run_pipeline --require-live-api
+dvc add data/raw data/interim data/processed data/metadata data/quarantine
+dvc diff --json
+dvc status
+dvc push
+git add data/*.dvc data/.gitignore
+git commit -m "data: record the next observation"
+```
+
+File raw bertambah pada setiap run sukses. Snapshot tanggal yang sama untuk ID yang sama diperbarui, sehingga demonstrasi penambahan baris harian sebaiknya memakai tanggal UTC berikutnya. Penambahan observasi adalah penambahan dataset; workflow ini belum melatih ulang model.
+
+Untuk membandingkan baseline kode dengan versi terbaru dari Actions:
+
+```bash
+git fetch origin main data-snapshots
+dvc diff origin/main origin/data-snapshots --json
+```
+
+`dvc diff` membandingkan hash dan perubahan file/direktori, bukan jumlah baris CSV. Artifact run memuat `baseline.json`, `growth.json`, `diff.json`, dan `status.txt` pada folder audit: jumlah snapshot, ID unik, serta raw sebelum dan sesudah dicatat terpisah. Output terminal `dvc diff`/`dvc status` dapat dijadikan bukti tangkapan layar setelah dua versi nyata tersedia. Hash baru dan perubahan dataset tidak boleh diklaim sebelum run baru berhasil.
 
 ## Pengujian
 

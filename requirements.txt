@@ -1,1 +1,5 @@
-# Pipeline saat ini hanya menggunakan Python standard library.
+# Ingestion dan transformasi memakai standard library; DVC mengelola versi data.
+dvc[gdrive]==3.67.1
+# Versi kompatibel dengan batas pyOpenSSL milik PyDrive2.
+pyOpenSSL==24.2.1
+asyncssh==2.21.1

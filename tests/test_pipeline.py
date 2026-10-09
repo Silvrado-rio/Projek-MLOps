@@ -8,13 +8,14 @@ import math
 import tempfile
 import unittest
 import urllib.error
-from io import BytesIO
+from io import BytesIO, StringIO
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from src.ingest import OFFLINE_PAYLOADS, fetch_mangadex, ingest
+from src.run_pipeline import main
 from src.transform import _build_features, transform
 from src.validate import deduplicate_chapters
 
@@ -28,6 +29,71 @@ SETTINGS = {
 
 
 class PipelineTest(unittest.TestCase):
+    @patch("src.ingest.time.sleep")
+    @patch("src.ingest._request_json")
+    def test_fixed_cohort_is_completed_once_and_requested_in_batches(self, request_json, _sleep):
+        ids = [f"manga-{index}" for index in range(101)]
+
+        def response(url, params, timeout):
+            if url.endswith("/manga") and "/statistics/" not in url:
+                selected = [value for name, value in params if name == "ids[]"]
+                if not selected:
+                    offset = int(dict(params)["offset"])
+                    selected = ids[offset:offset + 100]
+                return {"data": [{"id": item} for item in reversed(selected)]}
+            if "/statistics/" in url:
+                return {"statistics": {value: {"follows": 1} for name, value in params if name == "manga[]"}}
+            return {"data": [], "total": 0}
+
+        request_json.side_effect = response
+        settings = {**SETTINGS, "catalog_limit": 101, "tracked_manga_ids": ids[:100]}
+        first = fetch_mangadex(settings)
+        frozen = [item["id"] for item in first["catalog"]["data"]]
+        self.assertEqual(set(frozen), set(ids))
+        catalog_calls = [call for call in request_json.call_args_list if call.args[0].endswith("/manga") and "/statistics/" not in call.args[0]]
+        self.assertEqual(len(catalog_calls), 4)
+        self.assertEqual([dict(call.args[1])["offset"] for call in catalog_calls[:2]], ["0", "100"])
+        for call in catalog_calls[2:]:
+            self.assertLessEqual(sum(name == "ids[]" for name, _ in call.args[1]), 100)
+            self.assertIn(("originalLanguage[]", "ko"), call.args[1])
+        request_json.reset_mock()
+        second = fetch_mangadex({**settings, "tracked_manga_ids": frozen})
+        self.assertEqual({item["id"] for item in second["catalog"]["data"]}, set(ids))
+        for call in request_json.call_args_list:
+            if call.args[0].endswith("/manga") and "/statistics/" not in call.args[0]:
+                self.assertTrue(any(name == "ids[]" for name, _ in call.args[1]))
+
+    @patch("src.ingest._request_json")
+    def test_missing_fixed_catalog_or_statistics_fails_before_raw_writes(self, request_json):
+        settings = {**SETTINGS, "catalog_limit": 1, "tracked_manga_ids": ["missing"]}
+        for responses in ([{"data": []}], [{"data": [{"id": "missing"}]}, {"statistics": {}}]):
+            with self.subTest(responses=responses), tempfile.TemporaryDirectory() as directory:
+                request_json.reset_mock()
+                request_json.side_effect = responses
+                with self.assertRaisesRegex(RuntimeError, "cohort tetap tidak tersedia"):
+                    ingest(Path(directory), settings)
+                self.assertEqual(list(Path(directory).iterdir()), [])
+                self.assertEqual(request_json.call_count, len(responses))
+
+    @patch("src.run_pipeline.transform", return_value={"feature_rows": 0})
+    @patch("src.run_pipeline.ingest")
+    def test_main_persists_and_reuses_the_completed_cohort(self, fetch, _transform):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "metadata").mkdir()
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps({"mangadex": {**SETTINGS, "tracked_manga_ids": ["m1"]}, "quality": {}}), encoding="utf-8")
+            catalog_path = root / "catalog.json"
+            catalog_path.write_text(json.dumps({"payload": {"data": [{"id": "m1"}, {"id": "m2"}]}}), encoding="utf-8")
+            fetch.return_value = {"raw_files": {"catalog": str(catalog_path)}}
+            with patch("sys.argv", ["pipeline", "--config", str(config_path), "--output-root", str(root)]), patch("sys.stdout", new_callable=StringIO):
+                main()
+                self.assertEqual(fetch.call_args.args[1]["tracked_manga_ids"], ["m1"])
+                main()
+                self.assertEqual(fetch.call_args.args[1]["tracked_manga_ids"], ["m1", "m2"])
+            cohort_path = root / "metadata" / "tracked_manga_ids.json"
+            self.assertEqual(json.loads(cohort_path.read_text(encoding="utf-8")), ["m1", "m2"])
+
     def test_offline_mode_is_explicit(self):
         self.assertIs(fetch_mangadex(SETTINGS, offline=True), OFFLINE_PAYLOADS)
 
