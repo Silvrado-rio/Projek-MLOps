@@ -1,0 +1,6 @@
+outs:
+- md5: ee0a0884124dac9c249a71d18e026b90.dir
+  size: 0
+  nfiles: 17
+  hash: md5
+  path: quarantine
