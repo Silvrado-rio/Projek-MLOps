@@ -8,9 +8,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: manhwa-data-ingestion
+  cancel-in-progress: false
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    env:
+      GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -18,39 +24,97 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.10"
-      - name: Restore historical snapshots
+      - name: Install data versioning dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Configure private Drive credentials
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+        run: |
+          python - <<'PY'
+          import os
+          from dvc.repo import Repo
+          for name in ("GDRIVE_CLIENT_ID", "GDRIVE_CLIENT_SECRET", "GDRIVE_CREDENTIALS_DATA"):
+              if not os.environ.get(name):
+                  raise SystemExit(f"Required GitHub Actions secret is missing: {name}")
+          with Repo(".").config.edit(level="local") as config:
+              remote = config.setdefault("remote", {}).setdefault("drive", {})
+              remote["gdrive_client_id"] = os.environ["GDRIVE_CLIENT_ID"]
+              remote["gdrive_client_secret"] = os.environ["GDRIVE_CLIENT_SECRET"]
+          PY
+      - name: Restore data pointers and historical snapshots
         shell: bash
         run: |
-          git fetch origin data-snapshots || true
-          if git show-ref --verify --quiet refs/remotes/origin/data-snapshots; then
-            git archive origin/data-snapshots data | tar -x || true
+          git fetch origin data-snapshots
+          if git cat-file -e origin/data-snapshots:data/raw.dvc 2>/dev/null; then
+            git archive origin/data-snapshots 'data/*.dvc' data/.gitignore | tar -x
+            echo "DVC_BASELINE_REF=origin/data-snapshots" >> "$GITHUB_ENV"
+            dvc pull
+          else
+            echo "DVC_BASELINE_REF=HEAD" >> "$GITHUB_ENV"
+            dvc pull
+            # First migration retains observations collected after the initial DVC version.
+            git archive origin/data-snapshots data | tar -x
           fi
+          mkdir -p tmp/dvc-audit
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          rows = list(csv.DictReader(Path("data/interim/manga_daily_snapshots.csv").open(encoding="utf-8")))
+          Path("tmp/dvc-audit/baseline.json").write_text(json.dumps({
+              "snapshot_rows": len(rows),
+              "unique_manga_ids": len({row["manga_id"] for row in rows}),
+              "raw_files": len(list(Path("data/raw").rglob("*.json"))),
+          }, indent=2), encoding="utf-8")
+          PY
       - name: Run pipeline tests
         run: python -m unittest discover -s tests -v
       - name: Run daily pipeline with live MangaDex data
         run: python -m src.run_pipeline --require-live-api
-      - name: Persist snapshot history on the data branch
+      - name: Track, audit, and upload the new data version
         shell: bash
         run: |
-          cp -R data "$RUNNER_TEMP/pipeline-data"
-          git reset --hard
-          git clean -fd
-          if git show-ref --verify --quiet refs/remotes/origin/data-snapshots; then
-            git switch -C data-snapshots origin/data-snapshots
-          else
-            git switch --orphan data-snapshots
-            git rm -rf . || true
-          fi
-          rm -rf data
-          cp -R "$RUNNER_TEMP/pipeline-data" data
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
-          git diff --cached --quiet || git commit -m "data: snapshot ${GITHUB_RUN_ID}"
-          git push origin data-snapshots
+          dvc add data/raw data/interim data/processed data/metadata data/quarantine
+          dvc diff "$DVC_BASELINE_REF" --json > tmp/dvc-audit/diff.json
+          dvc status > tmp/dvc-audit/status.txt
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          audit = Path("tmp/dvc-audit")
+          before = json.loads((audit / "baseline.json").read_text(encoding="utf-8"))
+          rows = list(csv.DictReader(Path("data/interim/manga_daily_snapshots.csv").open(encoding="utf-8")))
+          after = {
+              "snapshot_rows": len(rows),
+              "unique_manga_ids": len({row["manga_id"] for row in rows}),
+              "raw_files": len(list(Path("data/raw").rglob("*.json"))),
+          }
+          result = {"before": before, "after": after,
+                    "added": {key: after[key] - before[key] for key in before}}
+          (audit / "growth.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+          print(json.dumps(result, indent=2))
+          PY
+          dvc push
+      - name: Persist DVC metadata on the data branch
+        shell: bash
+        run: |
+          history="$RUNNER_TEMP/data-history"
+          git worktree add -B data-snapshots "$history" origin/data-snapshots
+          # Removing files from the Git index preserves the existing commit history.
+          git -C "$history" rm -r --cached --ignore-unmatch data
+          mkdir -p "$history/.dvc" "$history/data"
+          cp .dvc/config .dvc/.gitignore "$history/.dvc/"
+          cp .dvcignore "$history/"
+          cp data/*.dvc data/.gitignore "$history/data/"
+          git -C "$history" config user.name "github-actions[bot]"
+          git -C "$history" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$history" add .dvc .dvcignore data/.gitignore 'data/*.dvc'
+          git -C "$history" diff --cached --quiet || git -C "$history" commit -m "data: DVC snapshot ${GITHUB_RUN_ID}"
+          git -C "$history" push origin data-snapshots
       - name: Keep the generated data as a workflow artifact
         uses: actions/upload-artifact@v7
         with:
           name: manhwa-trend-data-${{ github.run_id }}
-          path: data/
+          path: |
+            data/
+            tmp/dvc-audit/
           retention-days: 14

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kebijakan Privasi — Project-MLOps DVC</title>
+<body style="max-width:760px;margin:48px auto;padding:0 24px;font:18px/1.6 system-ui;color:#242424">
+<h1>Kebijakan Privasi — Project-MLOps DVC</h1>
+<p>Diperbarui: 9 Oktober 2026.</p>
+<h2>Akses dan penggunaan data</h2>
+<p>Aplikasi pribadi ini menggunakan OAuth Google untuk mengizinkan DVC membaca dan menulis cache dataset pada folder Google Drive yang ditentukan pengguna. Backend DVC meminta scope Google Drive dan appdata; scope Drive memberikan izin yang luas, meskipun workflow proyek diarahkan ke folder remote dataset. Workflow tidak ditujukan untuk mengolah dokumen pribadi lain milik pengguna.</p>
+<p>Data proyek berasal dari metadata publik MangaDex, termasuk identitas karya, statistik komunitas, dan metadata chapter. Aplikasi tidak mengambil gambar atau isi chapter.</p>
+<h2>Penyimpanan dan pembagian</h2>
+<p>Cache dataset disimpan di Google Drive pengguna. Kredensial OAuth lokal disimpan di luar file yang dilacak Git. Untuk otomatisasi, kredensial disimpan sebagai GitHub Actions Secrets dan dipakai oleh runner workflow. Pointer DVC dan kode disimpan di Git; hasil run dapat tersedia sebagai artifact GitHub selama 14 hari dan mengikuti akses repository. Folder Drive tetap mengikuti pengaturan berbagi yang ditetapkan pemilik.</p>
+<p>Proyek tidak menjual data Google pengguna, tidak menggunakannya untuk iklan, dan tidak menggunakan data pribadi Google untuk melatih model. Google Drive dan GitHub digunakan untuk penyimpanan dan eksekusi proyek. Penggunaan informasi dari API Google mengikuti Google API Services User Data Policy, termasuk persyaratan Limited Use.</p>
+<h2>Kontrol pengguna</h2>
+<p>Pengguna dapat menghentikan workflow, menghapus secrets, mencabut izin aplikasi melalui pengaturan akun Google, dan menghapus cache dari folder Drive. Pencabutan izin menghentikan akses berikutnya, tetapi tidak otomatis menghapus data yang sudah disimpan. Penghapusan cache dapat membuat versi dataset terkait tidak dapat dipulihkan.</p>
+<p>Pertanyaan proyek dapat disampaikan kepada pengelola melalui <a href="https://github.com/Silvrado-rio/Projek-MLOps/issues">halaman Issues repository</a>. Jangan menyertakan token atau kredensial.</p>
+<p><a href="index.html">Kembali ke halaman aplikasi</a> · <a href="terms.html">Ketentuan penggunaan</a></p>
+</body>
+</html>

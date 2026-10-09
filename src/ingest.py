@@ -107,26 +107,70 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
 
     base_url = settings["base_url"].rstrip("/")
     timeout = settings["timeout_seconds"]
-    catalog = _request_json(
-        f"{base_url}/manga",
-        [
-            ("limit", str(settings["catalog_limit"])),
-            ("originalLanguage[]", "ko"),
-            ("order[updatedAt]", "desc"),
-            ("contentRating[]", "safe"),
-            ("contentRating[]", "suggestive"),
-        ],
-        timeout,
-    )
+    catalog_params = [
+        ("originalLanguage[]", "ko"),
+        ("contentRating[]", "safe"),
+        ("contentRating[]", "suggestive"),
+    ]
+    tracked_ids = settings.get("tracked_manga_ids", [])
+    if tracked_ids:
+        target = settings["catalog_limit"]
+        if len(set(tracked_ids)) != len(tracked_ids) or len(tracked_ids) > target:
+            raise ValueError("Daftar ID tetap tidak boleh duplikat atau melebihi catalog_limit")
+        manga_ids = list(tracked_ids)
+        if len(manga_ids) < target:
+            offset = 0
+            while len(manga_ids) < target:
+                candidates = _request_json(
+                    f"{base_url}/manga",
+                    catalog_params + [("limit", "100"), ("offset", str(offset)), ("order[updatedAt]", "desc")],
+                    timeout,
+                )
+                if not candidates.get("data"):
+                    break
+                for item in candidates["data"]:
+                    if item["id"] not in manga_ids:
+                        manga_ids.append(item["id"])
+                    if len(manga_ids) == target:
+                        break
+                offset += 100
+            if len(manga_ids) != target:
+                raise RuntimeError("Kandidat manhwa tidak cukup untuk melengkapi cohort tetap")
+        catalog_data = []
+        catalog_pages = []
+        for start in range(0, len(manga_ids), 100):
+            batch = manga_ids[start:start + 100]
+            page = _request_json(
+                f"{base_url}/manga",
+                catalog_params + [("limit", str(len(batch)))] + [("ids[]", item) for item in batch],
+                timeout,
+            )
+            catalog_pages.append(page)
+            catalog_data.extend(page.get("data", []))
+        if {item["id"] for item in catalog_data} != set(manga_ids) or len(catalog_data) != len(manga_ids):
+            raise RuntimeError("Sebagian ID cohort tetap tidak tersedia; batch tidak diterbitkan")
+        catalog = {"result": "ok", "data": catalog_data, "total": len(catalog_data), "pages": catalog_pages}
+    else:
+        catalog = _request_json(
+            f"{base_url}/manga",
+            catalog_params + [("limit", str(settings["catalog_limit"])), ("order[updatedAt]", "desc")],
+            timeout,
+        )
     manga_ids = [item["id"] for item in catalog.get("data", [])]
     if not manga_ids:
         raise RuntimeError("Katalog manhwa MangaDex kosong")
 
-    statistics = _request_json(
-        f"{base_url}/statistics/manga",
-        [("manga[]", manga_id) for manga_id in manga_ids],
-        timeout,
-    )
+    statistics = {"statistics": {}, "pages": []}
+    for start in range(0, len(manga_ids), 100):
+        page = _request_json(
+            f"{base_url}/statistics/manga",
+            [("manga[]", manga_id) for manga_id in manga_ids[start:start + 100]],
+            timeout,
+        )
+        statistics["pages"].append(page)
+        statistics["statistics"].update(page.get("statistics", {}))
+    if tracked_ids and any(not statistics["statistics"].get(item) for item in manga_ids):
+        raise RuntimeError("Statistik sebagian ID cohort tetap tidak tersedia; batch tidak diterbitkan")
     chapter_params = [
         ("limit", str(settings["chapter_limit"])),
         ("order[publishAt]", "desc"),
