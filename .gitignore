@@ -225,3 +225,8 @@ mlflow.db-*
 mlartifacts/
 mlruns/
 output/
+
+# Documents and report bundles are kept outside the repository.
+*.pdf
+*.docx
+*.zip

@@ -280,8 +280,6 @@ Unduh arsip tersebut melalui Explorer Codespaces. Hasil MLflow tidak otomatis di
 
 Referensi: [MLflow Tracking](https://mlflow.org/docs/latest/tracking/), [Model Registry](https://mlflow.org/docs/latest/ml/model-registry/workflow/), [evaluasi temporal scikit-learn](https://scikit-learn.org/stable/modules/cross_validation.html).
 
-Hasil eksekusi lokal pada dataset 16 Oktober tersimpan sebagai [metadata eksperimen](docs/experiments/2026-10-16.json). Tiga Ridge mencapai MAE validasi 0.109929 (alpha 0.1), 0.100851 (alpha 1), dan 0.071720 (alpha 10). Momentum mencapai MAE 0.106931. Alpha 10 terpilih berdasarkan MAE, tetapi NDCG@10-nya 0.670129 masih di bawah momentum 0.787472; R2 juga negatif. Registrasi kandidat tidak berarti seluruh kriteria proyek sudah terpenuhi. Eksekusi ini menggunakan Python 3.12.14 lokal; konfigurasi Codespaces Python 3.10 perlu direproduksi pada lingkungan pengguna.
-
 ## Pengujian
 
 ```bash
