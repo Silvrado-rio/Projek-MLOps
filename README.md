@@ -12,11 +12,19 @@ Repositori ini berisi pipeline batch harian untuk memeringkat manhwa berdasarkan
 
 ### Cohort pengamatan tetap
 
-Target pengamatan adalah **200 ID tetap**. Konfigurasi memuat 142 ID yang sudah muncul dalam riwayat sampai 9 Oktober 2026, termasuk 50 ID dari konfigurasi awal. Run live pertama melengkapi daftar tersebut dengan 58 ID tambahan dari katalog Korea ber-rating `safe`/`suggestive`, diurutkan menurut pembaruan terbaru. Pencarian dan pengambilan katalog dibagi menjadi halaman maksimal 100 record.
+Target pengamatan adalah **1.000 ID tetap**. Konfigurasi memuat seluruh 200 ID dari cohort sebelumnya sebagai daftar awal. Ketika histori dipulihkan dari DVC, pipeline mempertahankan semua ID pada daftar tersimpan dan melengkapinya hingga 1.000 dengan kandidat katalog Korea ber-rating `safe`/`suggestive`, diurutkan menurut pembaruan terbaru. Pencarian dan pengambilan katalog dibagi menjadi halaman maksimal 100 record; statistik juga diambil per 100 ID.
 
-Setelah batch pertama berhasil, daftar lengkap disimpan di `data/metadata/tracked_manga_ids.json` dan dilacak DVC. Run berikutnya memakai daftar tersimpan, sehingga urutan pembaruan katalog tidak mengganti anggota sampel. ID katalog atau statistik yang hilang menghentikan pengambilan batch; pipeline tidak mengganti ID tersebut dengan judul baru. Perubahan ukuran cohort harus dilakukan secara sengaja bersama migrasi daftar tersimpan.
+Setelah batch berhasil diolah, daftar lengkap disimpan di `data/metadata/tracked_manga_ids.json` dan dilacak DVC. Run berikutnya memakai daftar tersimpan, sehingga urutan pembaruan katalog tidak mengganti anggota sampel. Menaikkan `catalog_limit` memperluas daftar pada run berikutnya; menurunkannya di bawah jumlah ID tersimpan ditolak. Jika kandidat tidak cukup, ID katalog/statistik hilang, atau pengolahan gagal, daftar tersimpan tidak diganti. ID lama dipertahankan selama perluasan, dan snapshot tanggal sebelumnya tetap digabungkan ke histori.
 
-Angka 200 merupakan batas praktis pengumpulan, bukan hasil perhitungan keterwakilan populasi. Metadata chapter tetap dibatasi 20 record terbaru per ID per run. ID tambahan belum memiliki histori dua minggu; baris supervised hanya tersedia setelah ID yang sama memiliki snapshot pada `t-7`, `t`, dan `t+7`.
+Angka 1.000 merupakan target praktis pengumpulan, bukan hasil perhitungan keterwakilan populasi. Ketersediaannya mengikuti filter API; pipeline gagal dengan jumlah ID yang berhasil ditemukan jika kandidat tidak mencukupi. Metadata chapter tetap dibatasi 20 record terbaru per ID per run. Semua request API diberi jeda 0,25 detik, termasuk pencarian kandidat, katalog, statistik, chapter, dan percobaan ulang.
+
+### Pertumbuhan menuju 6.000 baris processed
+
+Baris supervised hanya tersedia setelah ID yang sama memiliki snapshot pada `t-7`, `t`, dan `t+7`. Judul tambahan mulai membentuk histori sejak pengambilan pertamanya; pipeline tidak mengisi mundur jumlah followers. Satu judul menghasilkan paling banyak satu baris per tanggal acuan. Menjalankan ulang pipeline pada tanggal yang sama memperbarui snapshot tanggal itu, bukan menambah tanggal pengamatan.
+
+Untuk N judul yang seluruhnya mulai diamati bersamaan dan berhasil diambil setiap hari, D tanggal pengamatan berturut-turut menghasilkan `N × max(D - 14, 0)` baris processed. Dengan 1.000 judul, jendela pertama tersedia pada tanggal pengamatan ke-15; enam tanggal acuan menghasilkan 6.000 baris pada pengamatan ke-20. Histori 200 ID lama dapat mempercepat pencapaian total tersebut. Ini proyeksi kelengkapan waktu, bukan jaminan performa model atau jadwal tanpa kegagalan API.
+
+Pantau `valid_manga` dan `feature_rows` pada manifest yang dicetak langkah **Run daily pipeline with live MangaDex data** di Actions. Setelah perluasan berhasil, target `valid_manga` adalah 1.000; `feature_rows` menunjukkan jumlah processed aktual. Manifest juga tersedia di `data/metadata/manifest.json` pada artifact run. Workflow tetap memulihkan histori dari DVC, menyimpan dataset ke Google Drive, dan memperbarui pointer pada `data-snapshots`. Pengambilan harian berlanjut setelah 6.000 baris tercapai.
 
 ## Alur data
 

@@ -29,8 +29,9 @@ def main() -> None:
     cohort_path = args.output_root / "metadata" / "tracked_manga_ids.json"
     if not args.offline and cohort_path.exists():
         cohort = json.loads(cohort_path.read_text(encoding="utf-8"))
-        if len(cohort) != config["mangadex"]["catalog_limit"]:
-            raise ValueError("Ukuran cohort tersimpan berbeda dari catalog_limit")
+        if len(cohort) > config["mangadex"]["catalog_limit"]:
+            raise ValueError("catalog_limit tidak boleh mengecilkan cohort tersimpan")
+        # A larger configured limit appends IDs; existing members stay fixed.
         config["mangadex"]["tracked_manga_ids"] = cohort
     ingestion = ingest(args.output_root, config["mangadex"], offline=args.offline)
     manifest = transform(args.output_root, ingestion, config["quality"])
