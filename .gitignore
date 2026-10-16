@@ -151,6 +151,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv-train/
 env/
 venv/
 ENV/
@@ -217,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local experiment tracking and generated training evidence
+mlflow.db
+mlflow.db-*
+mlartifacts/
+mlruns/
+output/

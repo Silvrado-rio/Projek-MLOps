@@ -188,10 +188,108 @@ dvc diff origin/main origin/data-snapshots --json
 
 `dvc diff` membandingkan hash dan perubahan file/direktori, bukan jumlah baris CSV. Artifact run memuat `baseline.json`, `growth.json`, `diff.json`, dan `status.txt` pada folder audit: jumlah snapshot, ID unik, serta raw sebelum dan sesudah dicatat terpisah. Output terminal `dvc diff`/`dvc status` dapat dijadikan bukti tangkapan layar setelah dua versi nyata tersedia. Hash baru dan perubahan dataset tidak boleh diklaim sebelum run baru berhasil.
 
+## Pelatihan regresi dan eksperimen MLflow
+
+`train.py` memprediksi `target_growth_next_7d`, yaitu `log(1 + follows[t+7]) - log(1 + follows[t])`. Model awal adalah Ridge Regression dengan tiga nilai alpha: 0.1, 1, dan 10. Baseline momentum menggunakan perubahan log followers tujuh hari sebelumnya. MAE menjadi metrik pemilihan; RMSE, R2, serta NDCG@10 per tanggal dicatat sebagai metrik pendamping. NDCG memakai relevansi `max(target, 0)` dan membandingkan ranking model dengan momentum serta total followers.
+
+### Instalasi dan koneksi data
+
+Codespace baru memasang `requirements-train.txt` melalui konfigurasi dev container. Pada Codespace yang sudah ada, jalankan dari root repository:
+
+```bash
+python -m pip install -r requirements-train.txt
+python -m pip check
+git fetch origin data-snapshots
+```
+
+Training membaca CSV dan manifest langsung dari revisi DVC yang dipilih, sehingga pointer/data pada working tree tidak perlu diganti. `--data-rev` diselesaikan menjadi satu commit sebelum semua run; perubahan branch data selama eksperimen tidak mengubah dataset yang sedang dibandingkan. SHA-256 CSV diperiksa terhadap manifest dan dicatat bersama commit data, pointer DVC, commit kode, serta hash skrip training.
+
+Akses Drive perlu dikonfigurasi pada lingkungan yang menjalankan training. **Actions secrets tidak otomatis tersedia di Codespaces.** Tambahkan `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, dan `GDRIVE_CREDENTIALS_DATA` sebagai Codespaces secrets dengan akses ke repository, lalu buka ulang Codespace agar environment variable tersedia. Gunakan nilai privat yang sama dengan ingestion, tanpa menyalinnya ke Git atau laporan. Pada komputer lokal yang sudah memiliki `.dvc/config.local` dan kredensial OAuth, konfigurasi tersebut dapat langsung digunakan.
+
+Jika memakai Codespaces secrets, simpan konfigurasi client secara lokal:
+
+```bash
+dvc remote modify --local drive gdrive_client_id "$GDRIVE_CLIENT_ID"
+dvc remote modify --local drive gdrive_client_secret "$GDRIVE_CLIENT_SECRET"
+```
+
+Backend Google Drive membaca JSON kredensial dari `GDRIVE_CREDENTIALS_DATA`. Jangan menampilkan nilai environment variable atau isi `.dvc/config.local` dalam screenshot.
+
+### Menjalankan server dan tiga eksperimen
+
+Terminal pertama, Bash Codespaces:
+
+```bash
+mlflow server \
+  --backend-store-uri sqlite:///mlflow.db \
+  --artifacts-destination ./mlartifacts \
+  --host 0.0.0.0 --port 5000 \
+  --allowed-hosts "localhost,localhost:*,127.0.0.1,127.0.0.1:*,*.app.github.dev"
+```
+
+Buka tab **Ports**, pilih port **5000**, pertahankan visibilitas **Private**, lalu pilih **Open in Browser**. Biarkan server berjalan.
+
+Terminal kedua, dari root repository yang sama:
+
+```bash
+python train.py --data-rev origin/data-snapshots --register-best
+```
+
+Satu perintah menjalankan tiga training run dengan parameter berbeda, menyimpan model beserta imputer dan scaler melalui `mlflow.sklearn.log_model`, dan mendaftarkan Ridge dengan MAE validasi terendah sebagai alias **candidate**. Registrasi ini belum merupakan deployment. Untuk mengulang versi data yang sama gunakan commit penuh yang tercatat di `output/training/best_model.json`, misalnya:
+
+```bash
+python train.py --data-rev dd2545e --alphas 0.1 1 10 --register-best
+```
+
+Di Windows, instalasi training bisa diisolasi tanpa aktivasi PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m venv .venv-train
+.\.venv-train\Scripts\python.exe -m pip install -r requirements-train.txt
+# Terminal pertama:
+.\.venv-train\Scripts\mlflow.exe server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts --host 127.0.0.1 --port 5000
+# Terminal kedua:
+.\.venv-train\Scripts\python.exe train.py --data-rev origin/data-snapshots --register-best
+```
+
+### Pembagian waktu dan batas interpretasi
+
+Tanggal validasi default adalah tanggal fitur terbaru; `--validation-start YYYY-MM-DD` dapat memilih batas lain. Training hanya memakai baris yang `snapshot_date + 7 hari <= awal validasi`. Label yang berakhir pada tanggal awal validasi dianggap tersedia setelah snapshot hari tersebut diterima. Baris di antara training dan validasi disisihkan. Imputer median, indikator missing, dan scaler di-fit hanya pada training. `rating_votes` tidak dipakai karena belum tersedia; Bayesian rating digunakan sebagai fitur rating.
+
+Versi 16 Oktober 2026 (`dd2545e`) mempunyai 98 baris dari 50 judul. Pembagian default: 26 training (2 Oktober), 22 disisihkan (3-4 Oktober), dan 50 validasi (9 Oktober). Karena validasi juga digunakan untuk memilih alpha dan belum ada test set independen, metrik adalah hasil eksploratif. Lebih banyak tanggal diperlukan sebelum membuat klaim generalisasi. Nilai kosong chapter berarti metadata observasi tidak mencukupi, bukan otomatis nol aktivitas.
+
+Target awal proyek adalah MAE 10% lebih rendah dari momentum dan NDCG@10 lebih tinggi dari momentum serta popularitas. Hasil pemeriksaan metrik dicatat sebagai `meets_initial_metric_gate`; `deployment_ready` tetap `false` karena evaluasi independen belum tersedia. Model terbaik di antara tiga kandidat tidak harus mengungguli baseline.
+
+### Hasil dan bukti eksperimen
+
+- `output/training/comparison.csv`: perbandingan parameter dan metrik tiga run.
+- `output/training/best_model.json`: parameter terpilih, provenance data, pembagian waktu, metrik, serta versi Model Registry.
+- `output/training/predictions-alpha-*.csv`: prediksi validasi, target aktual, dan baseline.
+- `output/training/metric_comparison.png`: grafik MAE dan RMSE dibandingkan momentum; juga disimpan pada artifact run terbaik.
+- `mlflow.db` dan `mlartifacts/`: database dan artefak MLflow lokal; keduanya diabaikan Git.
+
+Pada MLflow UI, buka eksperimen **manhwa-growth-regression**, tampilkan kolom `alpha`, `validation_mae`, `validation_rmse`, dan `validation_ndcg_at_10`, lalu pilih tiga run untuk **Compare**. Bukti yang berguna: daftar tiga run, grafik perbandingan metrik, detail parameter/model, serta halaman **Models** yang memperlihatkan versi kandidat. Screenshot tidak boleh diisi dengan metrik contoh.
+
+Simpan backup database dan artefak sebelum menghapus Codespace. Setelah training selesai dan server dihentikan dengan Ctrl+C:
+
+```bash
+tar -czf output/mlflow-backup.tar.gz mlflow.db mlartifacts output/training
+```
+
+Unduh arsip tersebut melalui Explorer Codespaces. Hasil MLflow tidak otomatis diunggah ke remote DVC. Pengambilan harian tetap berjalan terpisah pada workflow ingestion; menjalankan training tidak memanggil API MangaDex atau memperbesar cohort.
+
+Referensi: [MLflow Tracking](https://mlflow.org/docs/latest/tracking/), [Model Registry](https://mlflow.org/docs/latest/ml/model-registry/workflow/), [evaluasi temporal scikit-learn](https://scikit-learn.org/stable/modules/cross_validation.html).
+
 ## Pengujian
 
 ```bash
 python -m unittest discover -s tests -v
+```
+
+Pemeriksaan training memerlukan `requirements-train.txt`; jika library tersebut belum dipasang, dua pemeriksaan training dilewati dan pengujian ingestion tetap berjalan. Dengan environment training:
+
+```bash
+python -m unittest tests.test_training -v
 ```
 
 Pengujian memastikan kegagalan jaringan tidak memakai fixture, filter katalog hanya memilih bahasa asli Korea, dan duplikasi chapter lintas bahasa mempertahankan waktu ketersediaan paling awal. Uji pengambilan berulang juga memeriksa raw lama tidak berubah meskipun waktu pengambilan sama, snapshot tanggal sebelumnya tetap tersedia, serta satu judul tidak berulang pada tanggal yang sama di interim.
