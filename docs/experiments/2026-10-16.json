@@ -1,0 +1,117 @@
+{
+  "experiment": "manhwa-growth-regression-validated-2026-10-16",
+  "dataset": {
+    "data_revision": "dd2545ef35d7db9cb0a02fbc5c5c0b0265f80cb1",
+    "processed_sha256": "77166e2a3eb1fdd8c408b40053c8aef45c4713bbf8ccf3610137b23880f063cc",
+    "processed_dvc_pointer": "outs:\n- md5: 04ec5290667641b603c575af1d2312a2.dir\n  size: 14240\n  nfiles: 1\n  hash: md5\n  path: processed",
+    "snapshot_date": "2026-10-16",
+    "source": "mangadex_api",
+    "total_rows": 98,
+    "unique_manga_ids": 50
+  },
+  "split": {
+    "train_rows": 26,
+    "validation_rows": 50,
+    "purged_rows": 22,
+    "train_start": "2026-10-02",
+    "train_end": "2026-10-02",
+    "validation_start": "2026-10-09",
+    "validation_end": "2026-10-09",
+    "train_labels_available_by": "2026-10-09",
+    "train_all_missing_features": [],
+    "missing_values": {
+      "follows": 0,
+      "bayesian_rating": 0,
+      "replies_count": 0,
+      "follows_delta_1d": 50,
+      "follows_delta_7d": 0,
+      "follows_growth_7d": 0,
+      "replies_delta_7d": 0,
+      "rating_delta_7d": 0,
+      "chapter_count_7d": 0,
+      "days_since_update": 30,
+      "release_interval_mean_30d": 72
+    },
+    "independent_test_set": false
+  },
+  "training_code": {
+    "git_revision": "04fc128c3516f133afa52c46f4acd442fb6830aa",
+    "script_sha256": "35e5bbfb48828075e49a67a4d1ec75af4ea2814428f30449db06ea2a51ecbf16"
+  },
+  "environment": {
+    "python": "3.12.14",
+    "mlflow": "3.5.1",
+    "scikit_learn": "1.7.2"
+  },
+  "target": "target_growth_next_7d",
+  "features": [
+    "follows",
+    "bayesian_rating",
+    "replies_count",
+    "follows_delta_1d",
+    "follows_delta_7d",
+    "follows_growth_7d",
+    "replies_delta_7d",
+    "rating_delta_7d",
+    "chapter_count_7d",
+    "days_since_update",
+    "release_interval_mean_30d"
+  ],
+  "runs": [
+    {
+      "alpha": 0.1,
+      "run_id": "e53eeea25afe4fee966e94865df6d1b0",
+      "model_uri": "models:/m-befb6f9220084d18a86a4f8ea3098dde",
+      "mae": 0.10992896151462003,
+      "rmse": 0.2807615991430539,
+      "r2": -11.463223663770306,
+      "ndcg_at_10": 0.733199421948337
+    },
+    {
+      "alpha": 1.0,
+      "run_id": "de06f75fbe7446d5a2731b23b94d65f1",
+      "model_uri": "models:/m-d7d0150da7a74b47b39d57079f742715",
+      "mae": 0.10085107980448191,
+      "rmse": 0.25297850913258196,
+      "r2": -9.11864202540308,
+      "ndcg_at_10": 0.7363299557280357
+    },
+    {
+      "alpha": 10.0,
+      "run_id": "b356d5d408de4568b17729af9ee92938",
+      "model_uri": "models:/m-42e99e3ded72425690e9e5730a9d3261",
+      "mae": 0.07171993421965159,
+      "rmse": 0.1631958093129626,
+      "r2": -3.210881101757253,
+      "ndcg_at_10": 0.6701289154003188
+    }
+  ],
+  "momentum_baseline": {
+    "mae": 0.10693080798453837,
+    "rmse": 0.31908333148952883,
+    "r2": -15.097677026382375,
+    "ndcg_at_10": 0.787471763752116
+  },
+  "popularity_baseline": {
+    "ndcg_at_10": 0.005874827553752749
+  },
+  "best": {
+    "alpha": 10.0,
+    "run_id": "b356d5d408de4568b17729af9ee92938",
+    "model_uri": "models:/m-42e99e3ded72425690e9e5730a9d3261",
+    "mae": 0.07171993421965159,
+    "rmse": 0.1631958093129626,
+    "r2": -3.210881101757253,
+    "ndcg_at_10": 0.6701289154003188
+  },
+  "selection_metric": "validation_mae",
+  "meets_initial_metric_gate": false,
+  "deployment_ready": false,
+  "limitation": "Small temporal validation set reused for parameter selection; no independent test set. Registry entry is an exploratory candidate.",
+  "registry": {
+    "name": "manhwa-growth-ridge",
+    "version": "2",
+    "alias": "candidate",
+    "model_uri": "models:/manhwa-growth-ridge/2"
+  }
+}
