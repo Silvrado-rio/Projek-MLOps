@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import dvc.api
 import matplotlib
@@ -231,6 +232,10 @@ def run_experiments(args: argparse.Namespace) -> dict:
 
 
 def main() -> None:
+    # MLflow prints Unicode URLs/status messages, including in Windows pipes.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-rev", default="origin/data-snapshots", help="DVC Git revision; resolved once before all runs.")
     parser.add_argument("--alphas", nargs="+", type=float, default=[0.1, 1.0, 10.0])
