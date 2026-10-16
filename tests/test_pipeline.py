@@ -94,6 +94,88 @@ class PipelineTest(unittest.TestCase):
             cohort_path = root / "metadata" / "tracked_manga_ids.json"
             self.assertEqual(json.loads(cohort_path.read_text(encoding="utf-8")), ["m1", "m2"])
 
+    @patch("src.ingest.time.sleep")
+    @patch("src.ingest._request_json")
+    def test_expansion_preserves_200_ids_and_history_then_reuses_1000(self, request_json, _sleep):
+        previous = [f"old-{index}" for index in range(200)]
+        candidates = previous + [f"new-{index}" for index in range(800)]
+
+        def response(url, params, timeout):
+            if url.endswith("/manga") and "/statistics/" not in url:
+                selected = [value for name, value in params if name == "ids[]"]
+                if not selected:
+                    offset = int(dict(params)["offset"])
+                    selected = candidates[offset:offset + 100]
+                return {"data": [
+                    {"id": item, "attributes": {"title": {"en": item}, "originalLanguage": "ko"}}
+                    for item in reversed(selected)
+                ]}
+            if "/statistics/" in url:
+                return {"statistics": {value: {"follows": 125} for name, value in params if name == "manga[]"}}
+            return {"data": [], "total": 0}
+
+        request_json.side_effect = response
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "metadata").mkdir()
+            cohort_path = root / "metadata" / "tracked_manga_ids.json"
+            cohort_path.write_text(json.dumps(previous), encoding="utf-8")
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps({
+                "mangadex": {**SETTINGS, "catalog_limit": 1000, "tracked_manga_ids": previous[:50]},
+                "quality": {"max_invalid_ratio": 0.05},
+            }), encoding="utf-8")
+            interim = root / "interim" / "manga_daily_snapshots.csv"
+            interim.parent.mkdir()
+            with interim.open("w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=["snapshot_date", "manga_id", "title", "follows"])
+                writer.writeheader()
+                writer.writerows({"snapshot_date": "2024-01-01", "manga_id": item, "title": item, "follows": 100}
+                                 for item in previous)
+            for iteration in range(2):
+                request_json.reset_mock()
+                with patch("sys.argv", ["pipeline", "--config", str(config_path), "--output-root", str(root)]), patch("sys.stdout", new_callable=StringIO):
+                    main()
+                cohort = json.loads(cohort_path.read_text(encoding="utf-8"))
+                self.assertEqual(len(cohort), 1000)
+                self.assertEqual(set(cohort), set(candidates))
+                with interim.open(encoding="utf-8", newline="") as stream:
+                    rows = list(csv.DictReader(stream))
+                self.assertEqual(len(rows), 1200)
+                self.assertEqual({row["manga_id"] for row in rows if row["snapshot_date"] == "2024-01-01"}, set(previous))
+                self.assertTrue(all(row["follows"] == "100" for row in rows if row["snapshot_date"] == "2024-01-01"))
+                catalog_calls = [call for call in request_json.call_args_list
+                                 if call.args[0].endswith("/manga") and "/statistics/" not in call.args[0]]
+                search_calls = [call for call in catalog_calls if not any(name == "ids[]" for name, _ in call.args[1])]
+                self.assertEqual(len(search_calls), 10 if iteration == 0 else 0)
+                self.assertEqual(sum(call.args[0].endswith("/chapter") for call in request_json.call_args_list), 1000)
+                for call in catalog_calls:
+                    self.assertLessEqual(int(dict(call.args[1])["limit"]), 100)
+
+    @patch("src.run_pipeline.ingest")
+    def test_saved_cohort_cannot_shrink_and_failed_expansion_keeps_ids(self, fetch):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "metadata").mkdir()
+            cohort_path = root / "metadata" / "tracked_manga_ids.json"
+            cohort_path.write_text('["m1", "m2"]\n', encoding="utf-8")
+            original = cohort_path.read_bytes()
+            config_path = root / "config.json"
+            for target in (1, 3):
+                config_path.write_text(json.dumps({"mangadex": {**SETTINGS, "catalog_limit": target}, "quality": {}}), encoding="utf-8")
+                fetch.reset_mock()
+                fetch.side_effect = RuntimeError("API unavailable")
+                with patch("sys.argv", ["pipeline", "--config", str(config_path), "--output-root", str(root)]):
+                    if target == 1:
+                        with self.assertRaisesRegex(ValueError, "tidak boleh mengecilkan"):
+                            main()
+                        fetch.assert_not_called()
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "API unavailable"):
+                            main()
+                        self.assertEqual(fetch.call_args.args[1]["tracked_manga_ids"], ["m1", "m2"])
+                self.assertEqual(cohort_path.read_bytes(), original)
+
     def test_offline_mode_is_explicit(self):
         self.assertIs(fetch_mangadex(SETTINGS, offline=True), OFFLINE_PAYLOADS)
 
@@ -195,6 +277,23 @@ class PipelineTest(unittest.TestCase):
             features[0]["target_growth_next_7d"],
             round(math.log1p(114) - math.log1p(107), 6),
         )
+
+    def test_1000_titles_need_20_daily_snapshots_to_produce_6000_rows(self):
+        start = date(2026, 10, 17)
+        snapshots = [
+            {
+                "snapshot_date": (start + timedelta(days=day)).isoformat(),
+                "manga_id": f"manga-{index}", "title": "Demo",
+                "follows": 100 + day, "bayesian_rating": "7.5",
+                "rating_votes": "", "replies_count": day,
+            }
+            for index in range(1000) for day in range(20)
+        ]
+        features = _build_features(snapshots, [])
+        self.assertEqual(len(features), 6000)
+        self.assertEqual(len({(row["snapshot_date"], row["manga_id"]) for row in features}), 6000)
+        self.assertEqual(min(row["snapshot_date"] for row in features), "2026-10-24")
+        self.assertEqual(max(row["snapshot_date"] for row in features), "2026-10-29")
 
     @patch("src.ingest.datetime")
     @patch("src.ingest.fetch_mangadex")

@@ -78,6 +78,8 @@ def _request_json(url: str, params: list[tuple[str, str]], timeout: int) -> dict
     last_error: Exception | None = None
     for attempt in range(1, 4):
         try:
+            # Pace catalog/statistics batches as well as per-title chapter calls.
+            time.sleep(0.25)
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = json.load(response)
             if payload.get("result") not in (None, "ok"):
@@ -135,7 +137,7 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
                         break
                 offset += 100
             if len(manga_ids) != target:
-                raise RuntimeError("Kandidat manhwa tidak cukup untuk melengkapi cohort tetap")
+                raise RuntimeError(f"Kandidat manhwa tidak cukup untuk melengkapi cohort tetap: {len(manga_ids)}/{target} ID")
         catalog_data = []
         catalog_pages = []
         for start in range(0, len(manga_ids), 100):
@@ -181,7 +183,7 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
     chapter_pages = []
     chapter_data = []
     matched_total = 0
-    for index, manga_id in enumerate(manga_ids):
+    for manga_id in manga_ids:
         page = _request_json(
             f"{base_url}/chapter",
             chapter_params + [("manga", manga_id)],
@@ -190,8 +192,6 @@ def fetch_mangadex(settings: dict, offline: bool = False) -> dict[str, dict]:
         chapter_pages.append(page)
         chapter_data.extend(page.get("data", []))
         matched_total += int(page.get("total", 0))
-        if index < len(manga_ids) - 1:
-            time.sleep(0.25)
     chapters = {
         "result": "ok",
         "data": chapter_data,
