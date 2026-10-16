@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+from importlib.metadata import version as package_version
 import json
 import math
 import os
@@ -133,7 +134,9 @@ def run_experiments(args: argparse.Namespace) -> dict:
     training, validation, purged = temporal_split(frame, args.validation_start)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     baseline = scores(validation, validation["momentum"].to_numpy())
-    popularity = scores(validation, validation["follows"].to_numpy())
+    # Total follows is a ranking baseline, not a log-growth prediction.
+    popularity = {key: value for key, value in scores(validation, validation["follows"].to_numpy()).items()
+                  if key == "ndcg_at_10"}
     split = {
         "train_rows": len(training), "validation_rows": len(validation), "purged_rows": purged,
         "train_start": str(training["snapshot_date"].min().date()),
@@ -198,6 +201,8 @@ def run_experiments(args: argparse.Namespace) -> dict:
     )
     summary = {
         "experiment": args.experiment, "dataset": provenance, "split": split,
+        "training_code": {"git_revision": common["code_revision"], "script_sha256": common["train_script_sha256"]},
+        "environment": {"python": sys.version.split()[0], "mlflow": mlflow.__version__, "scikit_learn": package_version("scikit-learn")},
         "target": TARGET, "features": FEATURES, "runs": results,
         "momentum_baseline": baseline, "popularity_baseline": popularity,
         "best": best, "selection_metric": "validation_mae",
@@ -210,7 +215,8 @@ def run_experiments(args: argparse.Namespace) -> dict:
         client.set_registered_model_alias(args.model_name, "candidate", version.version)
         client.set_model_version_tag(args.model_name, version.version, "deployment_ready", "false")
         client.set_model_version_tag(args.model_name, version.version, "data_revision", provenance["data_revision"])
-        summary["registry"] = {"name": args.model_name, "version": version.version, "alias": "candidate"}
+        summary["registry"] = {"name": args.model_name, "version": version.version, "alias": "candidate",
+                               "model_uri": f"models:/{args.model_name}/{version.version}"}
     comparison = pd.DataFrame(results)
     comparison.to_csv(args.output_dir / "comparison.csv", index=False)
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
