@@ -288,6 +288,31 @@ Unduh arsip tersebut melalui Explorer Codespaces. Hasil MLflow tidak otomatis di
 
 Referensi: [MLflow Tracking](https://mlflow.org/docs/latest/tracking/), [Model Registry](https://mlflow.org/docs/latest/ml/model-registry/workflow/), [evaluasi temporal scikit-learn](https://scikit-learn.org/stable/modules/cross_validation.html).
 
+## Model Registry dan simulasi inferensi
+
+`python -m src.model_registry` membandingkan model terpilih sebelumnya dengan Ridge yang dilatih ulang pada revisi DVC tertentu. Keduanya dievaluasi pada baris validasi temporal yang sama. Model pembaruan memakai alpha 20 secara default; data training dan alpha sama-sama berubah, sehingga perbedaan hasil tidak dapat diatribusikan hanya kepada alpha.
+
+Registry `manhwa-growth-ridge-serving` menyimpan kedua versi secara terpisah dari Registry eksperimen `manhwa-growth-ridge`. Model dengan MAE validasi terkecil dipilih, kemudian dipindahkan berurutan dari `None` ke `Staging` dan `Production`. Stage dipakai untuk simulasi inferensi; tag `simulation_only=true` dan `deployment_ready=false` tetap dipertahankan karena belum ada evaluasi test independen. Alias `production` juga menunjuk versi yang dipilih. Stage MLflow sudah deprecated, tetapi masih tersedia pada MLflow 3.5.1; lihat [Model Registry workflows](https://mlflow.org/docs/latest/ml/model-registry/workflow/).
+
+Jalankan server MLflow dan konfigurasi akses DVC seperti bagian sebelumnya. Model sumber `models:/manhwa-growth-ridge/2` harus tersedia pada server yang sama. Dari root repository:
+
+```bash
+python -m src.model_registry register --data-rev 3af01f5
+python -m src.model_registry promote --stage Staging
+python -m src.model_registry promote --stage Production
+python -m src.model_registry verify
+dvc add models/registry
+dvc push models/registry.dvc
+```
+
+Perintah registrasi menolak menimpa siklus yang sudah ada. Untuk percobaan terpisah, pilih nama model dan lokasi metadata baru, misalnya `python -m src.model_registry --record models/another-registry/active_model.yaml register --model-name another-serving-model --data-rev 3af01f5`. Nomor versi ditetapkan MLflow pada setiap Registry, bukan dipilih manual.
+
+Metadata `models/registry/active_model.yaml` memuat nama dan versi model, stage, transisi bertanggal, URI inferensi, run ID, parameter, revisi dan checksum dataset training/evaluasi, pembagian waktu, metrik perbandingan, serta hasil verifikasi inferensi. DVC menyimpan konten metadata ke remote Drive; Git menyimpan `models/registry.dvc` dan aturan ignore. Ini menghubungkan versi model ke data asal tanpa memasukkan database MLflow ke Git.
+
+Verifikasi memuat `models:/manhwa-growth-ridge-serving/Production` melalui `mlflow.pyfunc.load_model`. Sebelum inferensi, skrip memeriksa bahwa hanya ada satu versi pada stage Production dan versinya cocok dengan metadata serta pemenang perbandingan. Lima prediksi diperiksa agar finite dan sama dengan hasil validasi yang tercatat di MLflow. Pemeriksaan tersebut menguji jalur pemuatan dan prediksi; tidak mengukur latensi layanan atau membuktikan kemampuan generalisasi. Stage adalah mekanisme pemilihan versi, bukan pengaturan izin akses terhadap artefak.
+
+Registry dan artefak MLflow berada pada server lokal. `dvc pull models/registry.dvc` memulihkan metadata, bukan otomatis membuat ulang database Registry atau mengunggah artefak model MLflow ke Drive. Untuk berpindah lingkungan, pulihkan backup database dan `mlartifacts/` pada server tujuan. Pada tampilan Models yang baru, tag `lifecycle_stage` dan alias `production` membantu menampilkan status; tampilan Registry lama juga memperlihatkan kolom stage.
+
 ## Pengujian
 
 ```bash
