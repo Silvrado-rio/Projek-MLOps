@@ -294,6 +294,16 @@ Referensi: [MLflow Tracking](https://mlflow.org/docs/latest/tracking/), [Model R
 
 Registry `manhwa-growth-ridge-serving` menyimpan kedua versi secara terpisah dari Registry eksperimen `manhwa-growth-ridge`. Model dengan MAE validasi terkecil dipilih, kemudian dipindahkan berurutan dari `None` ke `Staging` dan `Production`. Stage dipakai untuk simulasi inferensi; tag `simulation_only=true` dan `deployment_ready=false` tetap dipertahankan karena belum ada evaluasi test independen. Alias `production` juga menunjuk versi yang dipilih. Stage MLflow sudah deprecated, tetapi masih tersedia pada MLflow 3.5.1; lihat [Model Registry workflows](https://mlflow.org/docs/latest/ml/model-registry/workflow/).
 
+Pada verifikasi 4 November 2026, versi aktif untuk simulasi inferensi adalah **versi 2**, Ridge `alpha=20`, melalui `models:/manhwa-growth-ridge-serving/Production` atau alias `models:/manhwa-growth-ridge-serving@production`. Dataset evaluasi adalah revisi `3af01f5` (3 November; 5.548 baris processed). Kedua versi dibandingkan pada 1.000 baris validasi bertanggal acuan 27 Oktober. Versi 1 mempertahankan artefak terbaik eksperimen sebelumnya (Ridge `alpha=10`, data training `dd2545e`); versi 2 dilatih menggunakan 1.148 baris yang labelnya tersedia pada batas waktu validasi. Sebanyak 3.400 baris lain disisihkan untuk pembagian ini.
+
+| Model | MAE validasi | RMSE validasi | R2 validasi | NDCG@10 |
+|---|---:|---:|---:|---:|
+| Versi 1, alpha 10 | 0.039244 | 0.062331 | -0.856705 | 0.446112 |
+| Versi 2, alpha 20 | 0.020615 | 0.040170 | 0.228843 | 0.693491 |
+| Momentum | 0.010339 | 0.057893 | -0.601731 | 0.484580 |
+
+Versi 2 dipilih karena MAE lebih rendah daripada versi 1 pada validasi yang sama, turun sekitar 47,47%. MAE momentum masih lebih baik; registrasi ke Production hanya memenuhi simulasi pemuatan model, bukan kelulusan seluruh sasaran performa. Pemuatan melalui stage Production telah menghasilkan lima prediksi finite yang cocok dengan prediksi validasi tersimpan. Metadata DVC merekam hasil, urutan transisi stage, dan batas interpretasi tersebut.
+
 Jalankan server MLflow dan konfigurasi akses DVC seperti bagian sebelumnya. Model sumber `models:/manhwa-growth-ridge/2` harus tersedia pada server yang sama. Dari root repository:
 
 ```bash
