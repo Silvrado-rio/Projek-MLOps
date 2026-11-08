@@ -117,7 +117,7 @@ Prapemrosesan sudah menghasilkan snapshot harian dan riwayat chapter meskipun `m
 
 ## Sampel data
 
-Tiga file `*-sample.json` di `data/raw/` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
+Tiga file `*-sample.json` di `tests/fixtures/mangadex/` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
 
 Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-rio/Projek-MLOps/tree/5e56130ea03ecd7e7d124eeade3e793c2ca4f840/data/raw).
 
@@ -129,7 +129,7 @@ Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-
 
 Record individual dipertahankan sesuai sumber, termasuk nilai null, ID, waktu, dan bahasa. Hanya record manga lain serta metadata pagination dan salinan `pages` gabungan yang tidak disertakan. Field tambahan `sample` mencatat commit, path asal, ID manga, dan metode seleksi. `source: mangadex_api` serta `fetched_at` berasal dari pengambilan asli; sampel ini bukan hasil request baru atau fixture sintetis.
 
-Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. File sampel dan histori lengkap sekarang dipulihkan dari remote DVC dengan `dvc pull`. Branch `data-snapshots` menyimpan pointer versi terbaru; commit lama yang memuat data langsung tetap dipertahankan. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
+Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. Salinan sampel di `tests/fixtures/mangadex/` dilacak Git agar unit test dapat berjalan pada checkout bersih tanpa kredensial DVC atau jaringan. File raw asli dan histori lengkap tetap dikelola DVC. Branch `data-snapshots` menyimpan pointer versi terbaru; commit lama yang memuat data langsung tetap dipertahankan. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
 
 Sampel tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
 

@@ -350,9 +350,9 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual([path for path in root.rglob("*") if path.is_file()], [marker])
 
     def test_committed_live_sample_can_be_preprocessed_repeatedly(self):
-        raw_root = Path(__file__).resolve().parents[1] / "data" / "raw"
+        raw_root = Path(__file__).resolve().parent / "fixtures" / "mangadex"
         paths = {
-            name: raw_root / name / "2026-09-26" / f"{name}-sample.json"
+            name: raw_root / f"{name}-sample.json"
             for name in ("catalog", "statistics", "chapters")
         }
         original = {name: path.read_bytes() for name, path in paths.items()}
