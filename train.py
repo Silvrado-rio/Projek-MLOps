@@ -290,7 +290,7 @@ def main() -> None:
             stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-rev", default="origin/data-snapshots", help="DVC Git revision; resolved once before all runs.")
-    parser.add_argument("--alphas", nargs="+", type=float, default=[0.1, 1.0, 10.0])
+    parser.add_argument("--alphas", nargs="+", type=float, default=[0.1, 1.0, 20.0])
     parser.add_argument("--validation-start", help="First validation date, YYYY-MM-DD; defaults to latest feature date.")
     parser.add_argument("--independent-test", action="store_true", help="Reserve the newest date for testing after validation-based alpha selection.")
     parser.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
