@@ -127,11 +127,31 @@ def scores(frame: pd.DataFrame, predictions: np.ndarray) -> dict[str, float]:
     return result
 
 
+def automation_split(frame: pd.DataFrame):
+    """Reserve the newest date for testing, after validation labels have matured."""
+    test_start = frame["snapshot_date"].max()
+    available = frame.loc[frame["snapshot_date"] + pd.Timedelta(days=HORIZON_DAYS) <= test_start]
+    if available.empty:
+        raise ValueError("Independent testing needs validation labels observed before the test date.")
+    validation_start = available["snapshot_date"].max()
+    training, validation, _ = temporal_split(available, str(validation_start.date()))
+    test = frame.loc[frame["snapshot_date"] >= test_start].copy()
+    if len(test) < 2:
+        raise ValueError("Independent testing needs at least two mature test rows.")
+    return training, validation, test, len(frame) - len(training) - len(validation) - len(test)
+
+
 def run_experiments(args: argparse.Namespace) -> dict:
     mlflow.set_tracking_uri(args.tracking_uri)
     mlflow.set_experiment(args.experiment)
     frame, provenance = load_dataset(args.data_rev)
-    training, validation, purged = temporal_split(frame, args.validation_start)
+    test = None
+    if getattr(args, "independent_test", False):
+        if args.validation_start:
+            raise ValueError("--independent-test chooses validation before the reserved test date.")
+        training, validation, test, purged = automation_split(frame)
+    else:
+        training, validation, purged = temporal_split(frame, args.validation_start)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     baseline = scores(validation, validation["momentum"].to_numpy())
     # Total follows is a ranking baseline, not a log-growth prediction.
@@ -146,8 +166,12 @@ def run_experiments(args: argparse.Namespace) -> dict:
         "train_labels_available_by": str((training["snapshot_date"].max() + pd.Timedelta(days=7)).date()),
         "train_all_missing_features": training[FEATURES].columns[training[FEATURES].isna().all()].tolist(),
         "missing_values": frame[FEATURES].isna().sum().astype(int).to_dict(),
-        "independent_test_set": False,
+        "independent_test_set": test is not None,
     }
+    if test is not None:
+        split.update(test_rows=len(test), test_start=str(test.snapshot_date.min().date()),
+                     test_end=str(test.snapshot_date.max().date()),
+                     validation_labels_available_by=str((validation.snapshot_date.max() + pd.Timedelta(days=HORIZON_DAYS)).date()))
     common = {
         **provenance, **{k: v for k, v in split.items() if isinstance(v, (str, int, bool))},
         "algorithm": "Ridge", "horizon_days": HORIZON_DAYS, "solver": "svd",
@@ -209,7 +233,27 @@ def run_experiments(args: argparse.Namespace) -> dict:
         "meets_initial_metric_gate": bool(gate), "deployment_ready": False,
         "limitation": "Small temporal validation set reused for parameter selection; no independent test set. Registry entry is an exploratory candidate.",
     }
-    if args.register_best:
+    if test is not None:
+        # Select alpha using validation only; evaluate that fixed model on test once.
+        selected_model = mlflow.sklearn.load_model(best["model_uri"])
+        predicted = selected_model.predict(test[FEATURES])
+        summary["test"] = {
+            "model": scores(test, predicted),
+            "momentum": scores(test, test["momentum"].to_numpy()),
+            "popularity": {k: v for k, v in scores(test, test["follows"].to_numpy()).items() if k == "ndcg_at_10"},
+        }
+        predictions = test[["snapshot_date", "manga_id", "title", TARGET, "momentum", "follows"]].copy()
+        predictions["prediction"] = predicted
+        test_path = args.output_dir / "test_predictions.csv"
+        predictions.to_csv(test_path, index=False)
+        client = mlflow.MlflowClient()
+        for group, metrics in summary["test"].items():
+            for key, value in metrics.items():
+                client.log_metric(best["run_id"], f"test_{group}_{key}", value)
+        client.log_artifact(best["run_id"], str(test_path))
+        client.set_tag(best["run_id"], "evaluation_status", "independent_temporal_test")
+        summary["limitation"] = "One held-out temporal test date; Staging is not production deployment or proof of long-term generalization."
+    if args.register_best and gate and test is None:
         version = mlflow.register_model(best["model_uri"], args.model_name)
         client = mlflow.MlflowClient()
         client.set_registered_model_alias(args.model_name, "candidate", version.version)
@@ -217,6 +261,8 @@ def run_experiments(args: argparse.Namespace) -> dict:
         client.set_model_version_tag(args.model_name, version.version, "data_revision", provenance["data_revision"])
         summary["registry"] = {"name": args.model_name, "version": version.version, "alias": "candidate",
                                "model_uri": f"models:/{args.model_name}/{version.version}"}
+    elif args.register_best:
+        summary["registry_skipped"] = "Metric gate failed or independent-test mode requires src.automation registration."
     comparison = pd.DataFrame(results)
     comparison.to_csv(args.output_dir / "comparison.csv", index=False)
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
@@ -244,8 +290,9 @@ def main() -> None:
             stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-rev", default="origin/data-snapshots", help="DVC Git revision; resolved once before all runs.")
-    parser.add_argument("--alphas", nargs="+", type=float, default=[0.1, 1.0, 10.0])
+    parser.add_argument("--alphas", nargs="+", type=float, default=[0.1, 1.0, 20.0])
     parser.add_argument("--validation-start", help="First validation date, YYYY-MM-DD; defaults to latest feature date.")
+    parser.add_argument("--independent-test", action="store_true", help="Reserve the newest date for testing after validation-based alpha selection.")
     parser.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     parser.add_argument("--experiment", default="manhwa-growth-regression")
     parser.add_argument("--output-dir", type=Path, default=Path("output/training"))

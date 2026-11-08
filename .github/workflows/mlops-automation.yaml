@@ -1,0 +1,179 @@
+name: LK-08 Code as a Trigger
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Automated testing (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+            requirements-ci.txt
+      - name: Install test and training dependencies
+        run: python -m pip install -r requirements-ci.txt
+      - name: Run all unit tests
+        run: python -m pytest -q -ra --junitxml=output/tests.xml
+      - name: Keep test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lk08-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/tests.xml
+      - name: Explain fork boundary
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo 'Fork PR runs tests only; private DVC access and Registry writes require a branch in this repository.' >> "$GITHUB_STEP_SUMMARY"
+
+  pipeline:
+    name: Training, evaluation, and conditional Staging
+    needs: test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: manhwa-lk08-registry
+      cancel-in-progress: false
+    env:
+      GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+      MLFLOW_TRACKING_URI: http://127.0.0.1:5001
+      MLFLOW_ENABLE_ARTIFACTS_PROGRESS_BAR: "false"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-train.txt
+            requirements-ci.txt
+      - name: Install training dependencies
+        run: python -m pip install -r requirements-ci.txt
+      - name: Configure existing private DVC remote
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+        run: |
+          python - <<'PY'
+          import os
+          from dvc.repo import Repo
+          for name in ("GDRIVE_CLIENT_ID", "GDRIVE_CLIENT_SECRET", "GDRIVE_CREDENTIALS_DATA"):
+              if not os.environ.get(name):
+                  raise SystemExit(f"Required secret is missing: {name}")
+          with Repo(".").config.edit(level="local") as config:
+              remote = config.setdefault("remote", {}).setdefault("drive", {})
+              remote["gdrive_client_id"] = os.environ["GDRIVE_CLIENT_ID"]
+              remote["gdrive_client_secret"] = os.environ["GDRIVE_CLIENT_SECRET"]
+          PY
+      - name: Pin newest DVC data revision
+        run: |
+          git fetch origin data-snapshots
+          echo "DATA_REV=$(git rev-parse origin/data-snapshots)" >> "$GITHUB_ENV"
+      - name: Restore persistent automation Registry when available
+        shell: bash
+        run: |
+          mkdir -p tmp output/automation models/automation
+          if git ls-remote --exit-code --heads origin automation-registry > tmp/registry-ref; then
+            git fetch origin automation-registry
+            git show origin/automation-registry:models/automation.dvc > models/automation.dvc
+            dvc pull models/automation.dvc
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then exit "$status"; fi
+            echo 'First run: no previously accepted automation Registry.'
+          fi
+      - name: Start isolated MLflow server
+        shell: bash
+        run: |
+          python -m mlflow server --backend-store-uri sqlite:///models/automation/mlflow.db --artifacts-destination models/automation/mlartifacts --host 127.0.0.1 --port 5001 --workers 1 > tmp/mlflow-automation.log 2>&1 &
+          echo $! > tmp/mlflow-automation.pid
+          python - <<'PY'
+          import time, urllib.request
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:5001/health", timeout=2) as response:
+                      if response.status == 200:
+                          break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise SystemExit("MLflow did not become ready within 60 attempts")
+          PY
+      - name: Automated training on pinned live DVC data
+        run: python train.py --data-rev "$DATA_REV" --independent-test --experiment manhwa-code-trigger --output-dir output/automation
+      - name: Evaluate independent test against LK-01 thresholds
+        id: evaluation
+        run: python -m src.automation evaluate
+      - name: Auto-register validated model in Staging
+        if: steps.evaluation.outputs.passed == 'true'
+        run: python -m src.automation register
+      - name: Report rejected model without changing Registry
+        if: steps.evaluation.outputs.passed == 'false'
+        run: echo '::warning::LK-01 performance gate REJECTED the model. Training and evaluation completed; Staging was blocked. See evaluation.json and the job summary.'
+      - name: Stop MLflow before snapshotting its database
+        if: always()
+        shell: bash
+        run: |
+          if [ -f tmp/mlflow-automation.pid ]; then
+            pid=$(cat tmp/mlflow-automation.pid)
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid"
+              for attempt in $(seq 1 30); do
+                if ! kill -0 "$pid" 2>/dev/null; then break; fi
+                sleep 1
+              done
+              if kill -0 "$pid" 2>/dev/null; then
+                echo 'MLflow did not stop; refusing to snapshot a running database.'
+                exit 1
+              fi
+            fi
+          fi
+      - name: Persist accepted Registry with DVC
+        if: success() && steps.evaluation.outputs.passed == 'true'
+        shell: bash
+        run: |
+          dvc add models/automation
+          dvc push models/automation.dvc
+          history="$RUNNER_TEMP/lk08-registry-history"
+          if git show-ref --verify --quiet refs/remotes/origin/automation-registry; then
+            git worktree add -B automation-registry "$history" origin/automation-registry
+          else
+            git worktree add -b automation-registry "$history" HEAD
+          fi
+          cp models/automation.dvc "$history/models/automation.dvc"
+          cp models/.gitignore "$history/models/.gitignore"
+          git -C "$history" config user.name 'github-actions[bot]'
+          git -C "$history" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$history" add models/automation.dvc models/.gitignore
+          git -C "$history" diff --cached --quiet || git -C "$history" commit -m "model: validated Staging snapshot ${GITHUB_RUN_ID}"
+          git -C "$history" push origin automation-registry
+      - name: Keep metrics, predictions, MLflow database, and model artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lk08-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/automation/
+            models/automation/
+            models/automation.dvc
+            tmp/mlflow-automation.log
+          if-no-files-found: error
+          retention-days: 90

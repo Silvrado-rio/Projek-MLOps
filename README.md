@@ -117,7 +117,7 @@ Prapemrosesan sudah menghasilkan snapshot harian dan riwayat chapter meskipun `m
 
 ## Sampel data
 
-Tiga file `*-sample.json` di `data/raw/` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
+Tiga file `*-sample.json` di `tests/fixtures/mangadex/` merupakan cuplikan data live untuk judul **Save the Earth!** (`0017ab16-4f1f-452a-99d2-5f7dec895a67`), diambil dari snapshot 26 September 2026 pukul 07.35.41 UTC (14.35.41 WIB).
 
 Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-rio/Projek-MLOps/tree/5e56130ea03ecd7e7d124eeade3e793c2ca4f840/data/raw).
 
@@ -129,7 +129,7 @@ Sumber: [commit 5e56130 pada branch data-snapshots](https://github.com/Silvrado-
 
 Record individual dipertahankan sesuai sumber, termasuk nilai null, ID, waktu, dan bahasa. Hanya record manga lain serta metadata pagination dan salinan `pages` gabungan yang tidak disertakan. Field tambahan `sample` mencatat commit, path asal, ID manga, dan metode seleksi. `source: mangadex_api` serta `fetched_at` berasal dari pengambilan asli; sampel ini bukan hasil request baru atau fixture sintetis.
 
-Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. File sampel dan histori lengkap sekarang dipulihkan dari remote DVC dengan `dvc pull`. Branch `data-snapshots` menyimpan pointer versi terbaru; commit lama yang memuat data langsung tetap dipertahankan. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
+Sampel berukuran kecil agar mudah diperiksa dan digunakan untuk menguji prapemrosesan. Salinan sampel di `tests/fixtures/mangadex/` dilacak Git agar unit test dapat berjalan pada checkout bersih tanpa kredensial DVC atau jaringan. File raw asli dan histori lengkap tetap dikelola DVC. Branch `data-snapshots` menyimpan pointer versi terbaru; commit lama yang memuat data langsung tetap dipertahankan. File sampel menggunakan akhiran `-sample.json`, sedangkan ingestion baru menggunakan nama berisi waktu UTC dan UUID.
 
 Sampel tidak otomatis dimasukkan ke riwayat harian: transformasi membaca file yang ditunjuk manifest ingestion saat berjalan, bukan seluruh JSON di `data/raw/`.
 
@@ -243,7 +243,7 @@ Terminal kedua, dari root repository yang sama:
 python train.py --data-rev origin/data-snapshots --register-best
 ```
 
-Satu perintah menjalankan tiga training run dengan parameter berbeda, menyimpan model beserta imputer dan scaler melalui `mlflow.sklearn.log_model`, dan mendaftarkan Ridge dengan MAE validasi terendah sebagai alias **candidate**. Registrasi ini belum merupakan deployment. Untuk mengulang versi data yang sama gunakan commit penuh yang tercatat di `output/training/best_model.json`, misalnya:
+Satu perintah menjalankan tiga training run dengan parameter berbeda dan menyimpan model beserta imputer dan scaler melalui `mlflow.sklearn.log_model`. Opsi `--register-best` hanya mendaftarkan Ridge dengan MAE validasi terendah sebagai alias **candidate** jika seluruh gate metrik awal lulus. Registrasi ini belum merupakan deployment. Untuk mengulang versi data yang sama gunakan commit penuh yang tercatat di `output/training/best_model.json`, misalnya:
 
 ```bash
 python train.py --data-rev dd2545e --alphas 0.1 1 10 --register-best
@@ -346,3 +346,32 @@ python -m unittest tests.test_pipeline.PipelineTest.test_committed_live_sample_c
 Pengujian memproses ketiga file sampel dua kali di direktori sementara tanpa jaringan. Raw tidak berubah, snapshot harian tidak berlipat, dan checksum processed tetap sama. Nilai `rating_votes` yang tidak disediakan API tetap kosong. File fitur belum memiliki baris karena sampel hanya mencakup satu tanggal.
 
 Proyek ini menggunakan API publik MangaDex, tidak menampilkan isi chapter, dan tidak dimonetisasi. MangaDex tetap harus dicantumkan sebagai sumber data.
+
+
+## LK-08: Code as a Trigger
+
+Workflow `.github/workflows/mlops-automation.yaml` berjalan pada push ke `main` atau pull request menuju `main`. Job `test` menjalankan `python -m pytest -q -ra`; job pipeline hanya dimulai jika seluruh test lulus. PR dari fork hanya mendapat unit test karena tidak memiliki secrets DVC. PR dari branch repositori ini menjalankan seluruh pipeline.
+
+Pipeline mengambil SHA terbaru `data-snapshots` satu kali, kemudian `train.py --independent-test` membaca processed dan manifest langsung dari DVC pada SHA tersebut. Sumber wajib API MangaDex dan checksum harus cocok. Model, imputer, scaler, parameter, revisi kode/data, prediksi, dan metrik dicatat di MLflow 3.5.1. Tidak ada penggantian data live dengan fixture untuk training proyek.
+
+Tanggal fitur terbaru menjadi test yang tidak digunakan memilih alpha. Validasi adalah tanggal fitur terbaru yang label tujuh harinya sudah tersedia pada awal test. Training hanya memuat label yang sudah tersedia pada awal validasi; baris di antaranya dipurge. Alpha dipilih berdasarkan MAE validasi, kemudian model terpilih dievaluasi pada test satu kali tanpa refit. Jendela ini mengikuti waktu, bukan random split.
+
+`python -m src.automation evaluate` menghitung ulang metrik dari `test_predictions.csv` dan menerapkan LK-01: MAE <= 0.9 kali MAE momentum, NDCG@10 > momentum, dan NDCG@10 > total follows. Ketiga syarat wajib lulus. Metrik ranking yang tidak tersedia membuat model ditolak; prediksi nonfinite, data tidak konsisten, dan kebocoran waktu membuat job gagal. Baseline MAE nol tidak dapat memenuhi perbaikan relatif dan ditolak. Threshold tidak diubah berdasarkan hasil test.
+
+Evaluasi yang selesai menghasilkan verdict `PASSED` atau `REJECTED`, `evaluation.json`, tabel pemeriksaan di Actions summary, dan tag MLflow. Job evaluasi sukses berarti proses pemeriksaan selesai, bukan otomatis berarti model diterima. Verdict `REJECTED` memberi warning dan melewati registrasi; model aktif sebelumnya dipertahankan. Kegagalan teknis tetap membuat workflow gagal.
+
+Hanya verdict `PASSED` menjalankan `python -m src.automation register`. Perintah ini menghitung ulang gate, memeriksa bahwa evaluasi belum berubah, mendaftarkan model ke `manhwa-growth-ridge-automation`, memindahkan versinya ke Staging, dan membaca kembali status dari Registry. Alias `staging` serta tag lineage disimpan. `deployment_ready=false` tetap berlaku: satu tanggal test belum membuktikan kesiapan produksi. Stage dipakai sesuai tugas pada MLflow 3.5.1; stage sudah deprecated pada MLflow dan alias juga disediakan.
+
+Runner menggunakan server MLflow terpisah di port 5001, bukan server lokal pengembang. Setelah server berhenti, database SQLite dan seluruh artefak model yang diterima disimpan sebagai `models/automation.dvc` ke remote Drive yang sudah ada. Branch `automation-registry` menyimpan pointer ini dan diperbarui hanya setelah model lolos; run berikutnya memulihkan Registry tersebut sebelum training. Branch dibuat otomatis saat model pertama kali lolos. Job pipeline diserialisasi agar versi Registry tidak saling menimpa. Workflow tidak mengubah Registry simulasi LK-07 atau mempromosikan model ke Production.
+
+Bukti setiap run (termasuk penolakan) tersedia pada artifact `lk08-evidence-<run_id>-<attempt>` selama 90 hari: JSON evaluasi, perbandingan alpha, prediksi, grafik, log server, database MLflow, dan artefak model. Hasil pytest disimpan terpisah sebagai JUnit XML. Registry model yang diterima tersimpan di DVC melampaui retensi artifact Actions. Untuk pemulihan, ambil pointer `models/automation.dvc` dari branch `automation-registry`, jalankan `dvc pull models/automation.dvc`, lalu mulai server dari root repositori:
+
+```powershell
+python -m mlflow server --backend-store-uri sqlite:///models/automation/mlflow.db --artifacts-destination models/automation/mlartifacts --host 127.0.0.1 --port 5001 --workers 1
+```
+
+Secrets yang diperlukan sama dengan ingestion: `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, dan `GDRIVE_CREDENTIALS_DATA`. Nilai credentials tidak dimasukkan ke Git, laporan, atau artifact.
+
+Unit test meliputi pemisahan waktu, penolakan gate, metrik ranking tidak tersedia, label belum matang, prediksi invalid, serta larangan registrasi model yang ditolak. Integration test membuat Registry MLflow SQLite sementara, mendaftarkan fixture ke Staging, membaca status, dan memuat model kembali. Fixture ini hanya menguji jalur penerimaan; bukan bukti performa model proyek.
+
+Simulasi LK-08 dilakukan melalui perubahan kecil daftar alpha di `train.py` setelah workflow ditambahkan ke PR. Bukti pemicu adalah event `pull_request` pada run untuk commit tersebut, bukan menjalankan tombol Run workflow secara manual.
