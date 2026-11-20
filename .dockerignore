@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!requirements-serving.txt
+!src/
+!src/__init__.py
+!src/api.py
+!src/bootstrap_model.py
+!docker/
+!docker/start-tracking.sh
+!models/
+!models/serving/
+!models/serving/**

@@ -1,0 +1,43 @@
+{
+  "instances": [
+    {
+      "follows": 63.0,
+      "bayesian_rating": 8.0488344672,
+      "replies_count": 2.0,
+      "follows_delta_1d": 0.0,
+      "follows_delta_7d": 26.0,
+      "follows_growth_7d": 0.702703,
+      "replies_delta_7d": 0.0,
+      "rating_delta_7d": -0.054239,
+      "chapter_count_7d": 5.0,
+      "days_since_update": 1.0,
+      "release_interval_mean_30d": 1.2222
+    },
+    {
+      "follows": 707.0,
+      "bayesian_rating": 8.2947217253,
+      "replies_count": 2.0,
+      "follows_delta_1d": 33.0,
+      "follows_delta_7d": 188.0,
+      "follows_growth_7d": 0.362235,
+      "replies_delta_7d": 0.0,
+      "rating_delta_7d": 0.022825,
+      "chapter_count_7d": 3.0,
+      "days_since_update": 2.0,
+      "release_interval_mean_30d": 1.3333
+    },
+    {
+      "follows": 1976.0,
+      "bayesian_rating": 8.6202209021,
+      "replies_count": 14.0,
+      "follows_delta_1d": 0.0,
+      "follows_delta_7d": -3.0,
+      "follows_growth_7d": -0.001516,
+      "replies_delta_7d": 0.0,
+      "rating_delta_7d": 0.0,
+      "chapter_count_7d": 0.0,
+      "days_since_update": 423.0,
+      "release_interval_mean_30d": null
+    }
+  ]
+}

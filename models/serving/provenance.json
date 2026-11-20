@@ -1,0 +1,25 @@
+{
+  "source_model_name": "manhwa-growth-ridge-serving",
+  "source_model_version": "2",
+  "source_run_id": "f8a9cab7b0c741e0ad240e7bc94288c4",
+  "training_data_revision": "3af01f57f91262a540d0b0a26759d6cfc7c3bd76",
+  "training_processed_sha256": "6f562cc7d6b99819b1777cdff675d88f5087dfcd7d44d1b0256cc94b7d8b1982",
+  "model_sha256": "93caa96942901a8559c0f2719d9129a813541dd790d403d885c1c7e582ff1f11",
+  "features": [
+    "follows",
+    "bayesian_rating",
+    "replies_count",
+    "follows_delta_1d",
+    "follows_delta_7d",
+    "follows_growth_7d",
+    "replies_delta_7d",
+    "rating_delta_7d",
+    "chapter_count_7d",
+    "days_since_update",
+    "release_interval_mean_30d"
+  ],
+  "target": "target_growth_next_7d",
+  "simulation_only": true,
+  "deployment_ready": false,
+  "note": "Unchanged LK-07 model; imported into an isolated Compose registry without retraining."
+}
