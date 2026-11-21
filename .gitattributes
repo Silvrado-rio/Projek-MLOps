@@ -1,1 +1,3 @@
 docker/*.sh text eol=lf
+scripts/*.sh text eol=lf
+models/serving/model/requirements.txt text eol=lf

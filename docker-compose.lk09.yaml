@@ -1,0 +1,59 @@
+name: manhwa-lk09
+
+services:
+  mlflow-server:
+    restart: unless-stopped
+    build:
+      context: .
+      target: tracking
+    environment:
+      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+    ports:
+      - "127.0.0.1:5001:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    networks:
+      - model-network
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/2.0/mlflow/registered-models/alias?name=manhwa-growth-ridge-compose&alias=demo', timeout=5)"
+      interval: 5s
+      timeout: 10s
+      start_period: 30s
+      retries: 24
+    init: true
+
+  api-service:
+    restart: unless-stopped
+    build:
+      context: .
+      target: api
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      MODEL_NAME: manhwa-growth-ridge-compose
+      MODEL_ALIAS: demo
+      MODEL_SHA256: 93caa96942901a8559c0f2719d9129a813541dd790d403d885c1c7e582ff1f11
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    networks:
+      - model-network
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 5s
+      timeout: 10s
+      start_period: 15s
+      retries: 12
+    init: true
+
+networks:
+  model-network:
+    driver: bridge
+
+volumes:
+  mlflow-data:

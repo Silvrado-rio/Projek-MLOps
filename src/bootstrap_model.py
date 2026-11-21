@@ -1,6 +1,7 @@
 """Import the existing LK-07 model into the isolated Compose registry once."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 import urllib.error
@@ -11,6 +12,24 @@ import mlflow
 
 BUNDLE = Path('/app/models/serving')
 MODEL_NAME = 'manhwa-growth-ridge-compose'
+
+
+def ensure_production(client, version):
+    """Apply the assignment lifecycle only inside the isolated Compose registry."""
+    stage = client.get_model_version(MODEL_NAME, version).current_stage
+    if stage not in {'None', 'Staging', 'Production'}:
+        raise ValueError(f'Cannot promote a model in stage {stage}')
+    for expected, target in [('None', 'Staging'), ('Staging', 'Production')]:
+        if stage == expected:
+            client.transition_model_version_stage(MODEL_NAME, version, target,
+                                                  archive_existing_versions=True)
+            stage = client.get_model_version(MODEL_NAME, version).current_stage
+            if stage != target:
+                raise RuntimeError(f'Registry did not confirm {target}')
+    client.set_model_version_tag(MODEL_NAME, version, 'lifecycle_stage', 'Production')
+    client.set_registered_model_alias(MODEL_NAME, 'production', version)
+    print(json.dumps({'event': 'production_ready_for_simulation', 'version': str(version),
+                      'stage': stage, 'simulation_only': True, 'deployment_ready': False}), flush=True)
 
 
 def main():
@@ -25,6 +44,7 @@ def main():
 
     provenance = json.loads((BUNDLE / 'provenance.json').read_text())
     digest = hashlib.sha256((BUNDLE / 'model/model.pkl').read_bytes()).hexdigest()
+    requirements_digest = hashlib.sha256((BUNDLE / 'model/requirements.txt').read_bytes()).hexdigest()
     if digest != provenance['model_sha256']:
         raise ValueError('The bundled model checksum does not match its provenance')
     client = mlflow.MlflowClient()
@@ -33,9 +53,12 @@ def main():
         existing = client.get_model_version_by_alias(MODEL_NAME, 'demo')
         if existing.tags.get('model_sha256') != digest:
             raise ValueError('Existing demo alias refers to a different model; review before replacing it')
-        print(json.dumps({'event': 'model_reused', 'version': existing.version,
-                          'model_sha256': digest}), flush=True)
-        return
+        if existing.tags.get('requirements_sha256') == requirements_digest or os.environ.get('MODEL_STAGE') != 'Production':
+            print(json.dumps({'event': 'model_reused', 'version': existing.version,
+                              'model_sha256': digest}), flush=True)
+            if os.environ.get('MODEL_STAGE') == 'Production':
+                ensure_production(client, existing.version)
+            return
 
     mlflow.set_experiment('lk09-compose-import')
     with mlflow.start_run(run_name='import-lk07-version-2') as run:
@@ -48,7 +71,10 @@ def main():
         client.set_model_version_tag(MODEL_NAME, version.version, key, str(provenance[key]))
     client.set_model_version_tag(MODEL_NAME, version.version, 'simulation_only', 'true')
     client.set_model_version_tag(MODEL_NAME, version.version, 'deployment_ready', 'false')
+    client.set_model_version_tag(MODEL_NAME, version.version, 'requirements_sha256', requirements_digest)
     client.set_registered_model_alias(MODEL_NAME, 'demo', version.version)
+    if os.environ.get('MODEL_STAGE') == 'Production':
+        ensure_production(client, version.version)
     print(json.dumps({'event': 'model_imported', 'version': version.version,
                       'model_sha256': digest}), flush=True)
 

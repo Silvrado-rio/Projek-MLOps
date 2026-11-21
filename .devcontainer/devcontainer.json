@@ -1,6 +1,6 @@
 {
     "name": "MLOps Python Environment",
-    "image": "mcr.microsoft.com/devcontainers/python:3.10",
+    "image": "mcr.microsoft.com/devcontainers/python:3.12",
     "customizations": {
         "vscode": {
             "settings": {
@@ -14,9 +14,24 @@
             ]
         }
     },
-    "forwardPorts": [5000],
+    "forwardPorts": [
+        5000,
+        5001,
+        5002
+    ],
     "portsAttributes": {
-        "5000": {"label": "MLflow", "onAutoForward": "notify"}
+        "5000": {
+            "label": "MLflow",
+            "onAutoForward": "notify"
+        },
+        "5001": {
+            "label": "MLflow Compose Registry",
+            "onAutoForward": "notify"
+        },
+        "5002": {
+            "label": "MLflow Models local serving",
+            "onAutoForward": "notify"
+        }
     },
-    "postCreateCommand": "python -m pip install -r requirements-train.txt"
+    "postCreateCommand": "python -m pip install -r requirements-train.txt -r requirements-serving.txt -r models/serving/model/requirements.txt"
 }

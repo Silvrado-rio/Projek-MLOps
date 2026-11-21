@@ -6,5 +6,7 @@ pandas==2.3.3
 numpy==2.2.6
 scipy==1.15.3
 cloudpickle==3.1.2
-fastapi==0.143.3
+# MLflow 3.5 scoring_server uses the legacy Starlette .route decorator.
+fastapi==0.118.0
+starlette==0.48.0
 uvicorn==0.54.0

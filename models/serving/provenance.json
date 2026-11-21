@@ -21,5 +21,6 @@
   "target": "target_growth_next_7d",
   "simulation_only": true,
   "deployment_ready": false,
-  "note": "Unchanged LK-07 model; imported into an isolated Compose registry without retraining."
+  "note": "Unchanged LK-07 model; imported into an isolated Compose registry without retraining.",
+  "serving_environment_note": "LK10 adds SQLAlchemy, FastAPI and Starlette compatibility pins; the original model.pkl checksum and fitted weights are unchanged."
 }
