@@ -375,3 +375,93 @@ Secrets yang diperlukan sama dengan ingestion: `GDRIVE_CLIENT_ID`, `GDRIVE_CLIEN
 Unit test meliputi pemisahan waktu, penolakan gate, metrik ranking tidak tersedia, label belum matang, prediksi invalid, serta larangan registrasi model yang ditolak. Integration test membuat Registry MLflow SQLite sementara, mendaftarkan fixture ke Staging, membaca status, dan memuat model kembali. Fixture ini hanya menguji jalur penerimaan; bukan bukti performa model proyek.
 
 Simulasi LK-08 dilakukan melalui perubahan kecil daftar alpha di `train.py` setelah workflow ditambahkan ke PR. Bukti pemicu adalah event `pull_request` pada run untuk commit tersebut, bukan menjalankan tombol Run workflow secara manual.
+
+## LK-09: Orkestrasi API dan MLflow dengan Docker Compose
+
+Prasyarat: Docker Engine/Desktop yang aktif dan plugin Docker Compose v2 atau lebih baru.
+Pada komputer pengembangan ini Docker tersedia di Ubuntu WSL; buka terminal Ubuntu
+lalu jalankan `cd /mnt/c/Projek-MLOps`. Perintah di bawah dijalankan dari root proyek.
+
+Jalankan seluruh sistem dengan satu perintah:
+
+```bash
+docker compose up -d
+```
+
+Compose membangun image pada pemakaian pertama. Sesudah mengubah kode atau model,
+gunakan `docker compose up -d --build`. Tunggu hingga kedua layanan sehat:
+
+```bash
+docker compose up -d --wait --wait-timeout 180
+docker compose ps
+```
+
+| Layanan | Akses dari host | Fungsi dan penyimpanan |
+| --- | --- | --- |
+| `mlflow-server` | http://localhost:5001 | Tracking, registry, dan penyajian artefak; SQLite serta artefak berada pada named volume `mlflow-data` di `/mlflow`. |
+| `api-service` | http://localhost:8000/docs | API inferensi; mengambil model melalui `http://mlflow-server:5000`, tanpa volume model bersama. |
+
+Keduanya bergabung ke custom bridge network `model-network`. Alamat antarkontainer
+menggunakan nama layanan dan port internal 5000. Port 5001 hanya untuk akses MLflow
+dari host. Port host diikat ke localhost untuk demonstrasi lokal.
+API menggunakan `depends_on` dengan `condition: service_healthy`. Healthcheck MLflow
+menunggu alias model tersedia, sehingga API dimulai setelah server dan model siap.
+
+Model demo berasal dari **LK-07 `manhwa-growth-ridge-serving` versi 2**, Ridge alpha 20.
+Artefak kecilnya disertakan dalam `models/serving/model` agar checkout baru bisa
+dijalankan tanpa kredensial Drive atau server MLflow lama. `provenance.json` menyimpan
+revisi data, run asal, dan SHA-256 model. Pada startup pertama, `bootstrap_model.py`
+mengunggah artefak tersebut ke server Compose dan mendaftarkannya sebagai
+`manhwa-growth-ridge-compose` dengan alias `demo`. Nomor versi pada registry Compose
+dimulai dari 1; ini impor model LK-07 versi 2, bukan model hasil training baru.
+Startup berikutnya memakai versi yang sama jika checksum cocok.
+
+Image API tidak memuat bundel model. Saat startup, API mengunduh model dari MLflow
+melalui HTTP, memeriksa checksum berkas terhadap nilai yang dikunci di Compose,
+lalu memuat pipeline yang sudah mencakup imputer, scaler, dan Ridge. `/health`
+menampilkan tracking URI, versi, lokasi artefak, checksum, dan waktu pemuatan.
+Model ini tetap `simulation_only=true` dan `deployment_ready=false`.
+
+### Uji inferensi dan komunikasi
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  --data-binary @configs/predict-example.json
+python3 scripts/verify_compose.py
+docker compose logs api-service
+```
+
+Skrip verifikasi hanya memakai standard library Python pada host. Skrip menjalankan
+request dari dalam kontainer API untuk menguji DNS `mlflow-server`, endpoint health
+MLflow, identitas model, tiga prediksi contoh, serta HTTP 422 untuk input invalid.
+Contoh input berasal dari input example artefak LK-07; nilai prediksi referensi
+berada pada `models/serving/expected-predictions.json`.
+Target keluaran adalah perubahan log followers tujuh hari berikutnya,
+`log(1 + follows[t+7]) - log(1 + follows[t])`, bukan jumlah followers langsung.
+
+### Uji persistensi dan penghentian
+
+```bash
+docker compose down
+docker compose up -d --wait --wait-timeout 180
+python3 scripts/verify_compose.py
+```
+
+`down` menghapus kontainer dan jaringan proyek; named volume tetap disimpan.
+Periksa bahwa versi, checksum model, serta prediksi tetap sama dan log MLflow
+menampilkan `model_reused`. Gunakan `docker compose stop` untuk menghentikan
+layanan tanpa menghapus kontainernya. **Jangan gunakan `down -v` jika metadata
+dan artefak masih diperlukan**, karena opsi tersebut menghapus volume.
+
+Pengujian kontrak dan artefak secara lokal:
+
+```bash
+python -m pip install -r requirements-serving.txt -r models/serving/model/requirements.txt
+python -m unittest tests.test_serving -v
+```
+
+Referensi: [urutan startup dan healthcheck Docker Compose](https://docs.docker.com/compose/how-tos/startup-order/),
+[jaringan Compose](https://docs.docker.com/compose/how-tos/networking/),
+[MLflow Tracking Server](https://mlflow.org/docs/latest/self-hosting/architecture/tracking-server/).

@@ -1,0 +1,10 @@
+# Runtime only; ingestion and training dependencies stay separate.
+mlflow==3.5.1
+SQLAlchemy==2.0.44
+scikit-learn==1.7.2
+pandas==2.3.3
+numpy==2.2.6
+scipy==1.15.3
+cloudpickle==3.1.2
+fastapi==0.143.3
+uvicorn==0.54.0

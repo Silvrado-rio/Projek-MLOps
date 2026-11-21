@@ -1,0 +1,41 @@
+artifact_path: mlflow-artifacts:/4/models/m-dc5502e2eac3488db3e1a61a452f145b/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.14
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.5.1
+model_id: m-dc5502e2eac3488db3e1a61a452f145b
+model_size_bytes: 3601
+model_uuid: m-dc5502e2eac3488db3e1a61a452f145b
+prompts: null
+run_id: f8a9cab7b0c741e0ad240e7bc94288c4
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "follows", "required": true}, {"type": "double",
+    "name": "bayesian_rating", "required": true}, {"type": "double", "name": "replies_count",
+    "required": true}, {"type": "double", "name": "follows_delta_1d", "required":
+    false}, {"type": "double", "name": "follows_delta_7d", "required": true}, {"type":
+    "double", "name": "follows_growth_7d", "required": true}, {"type": "double", "name":
+    "replies_delta_7d", "required": true}, {"type": "double", "name": "rating_delta_7d",
+    "required": true}, {"type": "double", "name": "chapter_count_7d", "required":
+    true}, {"type": "double", "name": "days_since_update", "required": false}, {"type":
+    "double", "name": "release_interval_mean_30d", "required": false}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-11-04 06:20:57.713158'
