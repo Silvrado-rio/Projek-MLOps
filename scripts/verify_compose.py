@@ -8,12 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def compose(*args, input=None):
-    return subprocess.check_output(['docker', 'compose', *args], cwd=ROOT,
+    return subprocess.check_output(['docker', 'compose', '-f', 'docker-compose.lk09.yaml', *args], cwd=ROOT,
                                    input=input, text=True)
 
 
 def main():
-    print('$ docker compose ps')
+    print('$ docker compose -f docker-compose.lk09.yaml ps')
     print(compose('ps'))
     request = json.loads((ROOT / 'configs/predict-example.json').read_text())
     code = '''
@@ -45,7 +45,7 @@ print('PASS: service discovery, MLflow connection, model checksum and prediction
 '''
     expected = json.loads((ROOT / 'models/serving/expected-predictions.json').read_text())['predictions']
     program = f'PAYLOAD={json.dumps(request)!r}\nEXPECTED={expected!r}\n' + code
-    print('$ docker compose exec -T api-service python -')
+    print('$ docker compose -f docker-compose.lk09.yaml exec -T api-service python -')
     print(compose('exec', '-T', 'api-service', 'python', '-', input=program))
     print('API mounts:', compose('exec', '-T', 'api-service', 'sh', '-c',
           'test ! -d /app/models/serving && echo "No bundled model or shared MLflow volume in API container"'))

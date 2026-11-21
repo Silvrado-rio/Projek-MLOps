@@ -378,6 +378,8 @@ Simulasi LK-08 dilakukan melalui perubahan kecil daftar alpha di `train.py` sete
 
 ## LK-09: Orkestrasi API dan MLflow dengan Docker Compose
 
+Konfigurasi historis LK-09 disimpan di `docker-compose.lk09.yaml`; konfigurasi utama kini untuk LK-10.
+
 Prasyarat: Docker Engine/Desktop yang aktif dan plugin Docker Compose v2 atau lebih baru.
 Pada komputer pengembangan ini Docker tersedia di Ubuntu WSL; buka terminal Ubuntu
 lalu jalankan `cd /mnt/c/Projek-MLOps`. Perintah di bawah dijalankan dari root proyek.
@@ -385,15 +387,15 @@ lalu jalankan `cd /mnt/c/Projek-MLOps`. Perintah di bawah dijalankan dari root p
 Jalankan seluruh sistem dengan satu perintah:
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.lk09.yaml up -d
 ```
 
 Compose membangun image pada pemakaian pertama. Sesudah mengubah kode atau model,
-gunakan `docker compose up -d --build`. Tunggu hingga kedua layanan sehat:
+gunakan `docker compose -f docker-compose.lk09.yaml up -d --build`. Tunggu hingga kedua layanan sehat:
 
 ```bash
-docker compose up -d --wait --wait-timeout 180
-docker compose ps
+docker compose -f docker-compose.lk09.yaml up -d --wait --wait-timeout 180
+docker compose -f docker-compose.lk09.yaml ps
 ```
 
 | Layanan | Akses dari host | Fungsi dan penyimpanan |
@@ -430,7 +432,7 @@ curl -X POST http://localhost:8000/predict \
   -H 'Content-Type: application/json' \
   --data-binary @configs/predict-example.json
 python3 scripts/verify_compose.py
-docker compose logs api-service
+docker compose -f docker-compose.lk09.yaml logs api-service
 ```
 
 Skrip verifikasi hanya memakai standard library Python pada host. Skrip menjalankan
@@ -444,14 +446,14 @@ Target keluaran adalah perubahan log followers tujuh hari berikutnya,
 ### Uji persistensi dan penghentian
 
 ```bash
-docker compose down
-docker compose up -d --wait --wait-timeout 180
+docker compose -f docker-compose.lk09.yaml down
+docker compose -f docker-compose.lk09.yaml up -d --wait --wait-timeout 180
 python3 scripts/verify_compose.py
 ```
 
 `down` menghapus kontainer dan jaringan proyek; named volume tetap disimpan.
 Periksa bahwa versi, checksum model, serta prediksi tetap sama dan log MLflow
-menampilkan `model_reused`. Gunakan `docker compose stop` untuk menghentikan
+menampilkan `model_reused`. Gunakan `docker compose -f docker-compose.lk09.yaml stop` untuk menghentikan
 layanan tanpa menghapus kontainernya. **Jangan gunakan `down -v` jika metadata
 dan artefak masih diperlukan**, karena opsi tersebut menghapus volume.
 
@@ -465,3 +467,163 @@ python -m unittest tests.test_serving -v
 Referensi: [urutan startup dan healthcheck Docker Compose](https://docs.docker.com/compose/how-tos/startup-order/),
 [jaringan Compose](https://docs.docker.com/compose/how-tos/networking/),
 [MLflow Tracking Server](https://mlflow.org/docs/latest/self-hosting/architecture/tracking-server/).
+
+
+## LK-10: MLflow Models serving dan tiga replika
+
+Konfigurasi utama `docker-compose.yaml` sekarang menjalankan satu MLflow tracking
+server dan tiga replika **server model bawaan MLflow**. API LK-10 menggunakan
+`POST /invocations`, bukan `/predict` atau `/docs` milik FastAPI LK-09.
+Konfigurasi LK-09 tetap tersedia melalui `docker-compose.lk09.yaml`.
+
+### Persiapan registry dan image
+
+Jalankan dari terminal Ubuntu WSL pada komputer ini:
+
+```bash
+cd /mnt/c/Projek-MLOps
+# Hentikan LK-09 bila masih berjalan; volume tidak dihapus.
+docker compose -f docker-compose.lk09.yaml down
+bash scripts/build_mlflow_image.sh
+docker compose up -d --wait --wait-timeout 180
+docker compose ps
+```
+
+Skrip build menyalakan tracking server dan memakai MLflow yang sudah terpasang
+pada image tracking untuk menjalankan perintah resmi berikut:
+
+```bash
+mlflow models build-docker \
+  --model-uri models:/manhwa-growth-ridge-compose/Production \
+  --name manhwa-growth-mlflow:lk10 --env-manager local
+```
+
+Helper build sementara memakai socket dan CLI Docker host agar perintah MLflow
+bisa membangun image pada Docker Engine yang sama. Helper dihapus setelah build;
+kontainer model yang melayani prediksi tidak memperoleh socket Docker.
+Image hasil `build-docker` sudah berisi model dan dependency-nya, lalu melayani
+model pada port internal 8080. Endpoint tidak mengambil model ulang setiap request.
+
+Pada registry Compose, bootstrap memeriksa checksum model LK-07 dan menerapkan
+urutan `None -> Staging -> Production` untuk simulasi LK-10. Alias `production`
+menunjuk versi yang sama. MLflow 3.5.1 dipertahankan karena menyediakan stage
+sesuai tugas, meskipun stage sudah deprecated. Registry dan volume LK-07 asli
+berada terpisah dari registry Compose ini.
+
+Paket serving mengunci FastAPI 0.118.0 dan Starlette 0.48.0 karena scoring server
+MLflow 3.5.1 menggunakan decorator `.route` yang sudah tidak tersedia pada pasangan
+versi terbaru. SQLAlchemy 2.0.44 juga dikunci. Jika hash requirements berubah,
+bootstrap mendaftarkan paket baru dengan bobot model yang sama sebelum memindahkan
+stage; versi lama tetap ada. `model.pkl` tetap memiliki SHA-256
+`93caa96942901a8559c0f2719d9129a813541dd790d403d885c1c7e582ff1f11`.
+Tag `simulation_only=true` dan `deployment_ready=false` tetap berlaku; status
+Production untuk tugas ini tidak menggantikan performance gate LK-08.
+
+### Serving lokal sebelum kontainerisasi
+
+Di Codespaces/Linux dengan Python 3.12 dan MLflow terpasang, jalankan setelah
+tracking server tersedia. `.devcontainer` sudah menyiapkan dependency serta port
+5001 (tracking) dan 5002 (serving lokal).
+
+```bash
+export MLFLOW_TRACKING_URI=http://127.0.0.1:5001
+mlflow models serve \
+  --model-uri models:/manhwa-growth-ridge-compose/Production \
+  --env-manager local --host 0.0.0.0 --port 5002 --workers 1
+```
+
+Pada komputer Windows ini, MLflow lokal tersedia di `.venv-train`, sementara Docker
+tersedia di Ubuntu WSL. Untuk tahap lokal, buka **PowerShell Windows** dan jalankan:
+
+```powershell
+cd C:\Projek-MLOps
+.\.venv-train\Scripts\Activate.ps1
+python -m pip install -r requirements-serving.txt -r models/serving/model/requirements.txt
+$env:MLFLOW_TRACKING_URI='http://127.0.0.1:5001'
+mlflow models serve --model-uri models:/manhwa-growth-ridge-compose/Production --env-manager local --host 127.0.0.1 --port 5002 --workers 1
+```
+
+Pada terminal Windows kedua, uji input/output menggunakan curl executable:
+
+```powershell
+curl.exe -sS http://127.0.0.1:5002/invocations -H "Content-Type: application/json" --data-binary "@configs/mlflow-invocations.json"
+```
+
+Hentikan server lokal dengan Ctrl+C. Pengujian dalam implementasi ini dilakukan
+pada Windows untuk tahap lokal serta Ubuntu WSL untuk Docker; **belum merupakan
+bukti eksekusi di Codespaces**. Bila Codespaces diwajibkan, jalankan instruksi Linux
+di atas di Codespaces dan ambil screenshot dari lingkungan tersebut.
+
+### Mengakses tiga replika
+
+Konfigurasi default menggunakan:
+
+```yaml
+api-service:
+  image: manhwa-growth-mlflow:lk10
+  ports:
+    - target: 8080
+      host_ip: 127.0.0.1
+  deploy:
+    replicas: 3
+```
+
+Port host dipilih otomatis untuk setiap replika sehingga tidak terjadi benturan.
+Temukan port replika pertama lalu kirim request (Ubuntu WSL/Linux):
+
+```bash
+docker compose port --index 1 api-service 8080
+API_URL="http://$(docker compose port --index 1 api-service 8080)"
+curl -sS "$API_URL/ping"
+python3 -c 'import json; print(json.dumps(json.load(open("configs/mlflow-invocations.json"))))'
+curl -sS "$API_URL/invocations" \
+  -H 'Content-Type: application/json' \
+  --data-binary @configs/mlflow-invocations.json
+python3 scripts/verify_lk10.py
+```
+
+Gunakan `--index 2` atau `--index 3` untuk endpoint replika lainnya. Contoh payload
+memakai `dataframe_split` dengan 11 fitur dalam urutan signature model. Keluaran
+berupa `{"predictions": [...]}` dengan tiga nilai perubahan log followers tujuh
+hari berikutnya. Nilai referensi ada di `models/serving/expected-predictions.json`.
+Skrip verifikasi memeriksa jumlah kontainer, healthcheck, `/ping`, checksum model
+pada setiap kontainer, dan kesesuaian prediksi setiap endpoint. Skrip juga mengirim
+empat request per replika melalui enam worker klien secara bersamaan.
+
+### Mengubah jumlah replika secara dinamis
+
+```bash
+# Simulasikan penambahan kapasitas menjadi empat instansi.
+docker compose up -d --scale api-service=4 --wait --wait-timeout 180
+python3 scripts/verify_lk10.py --replicas 4
+# Kembalikan ke tiga sesuai luaran tugas.
+docker compose up -d --scale api-service=3 --wait --wait-timeout 180
+python3 scripts/verify_lk10.py --replicas 3
+```
+
+Override `--scale` berlaku pada perintah tersebut; nilai default manifest tetap 3.
+Port host dapat berubah setelah kontainer dibuat ulang, sehingga periksa kembali
+`docker compose port`. Sistem ini mengekspos endpoint terpisah untuk setiap
+replika, tanpa load balancer bersama. Pengujian request bersamaan membuktikan fungsi
+layanan, bukan benchmark throughput atau bukti peningkatan performa. Seluruh replika
+masih berjalan pada satu Docker host.
+
+### Bukti dan penghentian
+
+Screenshot input/output API: tampilkan `cat configs/mlflow-invocations.json` dan
+hasil request `curl` pada terminal yang sama. Screenshot replikasi: tampilkan
+`docker compose ps` dengan tiga kontainer `api-service` berstatus healthy.
+Simpan laporan dan gambar di folder dokumen tugas, bukan di dalam kode repositori.
+
+```bash
+docker compose down
+```
+
+Named volume `manhwa-lk09_mlflow-data` mempertahankan registry dan artefak.
+Jangan gunakan `down -v` jika data tersebut masih diperlukan. Ketika kembali ke
+LK-09, hentikan LK-10 terlebih dahulu karena keduanya menggunakan port tracking
+5001 dan volume registry yang sama.
+
+Referensi: [MLflow Models local serving](https://mlflow.org/docs/latest/ml/deployment/deploy-model-locally/),
+[MLflow build-docker](https://mlflow.org/docs/latest/api_reference/cli.html#mlflow-models-build-docker),
+[port dan jaringan Compose](https://docs.docker.com/compose/how-tos/networking/).

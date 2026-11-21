@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+rm -f /tmp/model-ready
 mlflow server \
   --host 0.0.0.0 --port 5000 --workers 1 \
   --backend-store-uri sqlite:////mlflow/mlflow.db \
@@ -11,4 +12,5 @@ if ! python -m src.bootstrap_model; then
   kill -TERM "$server_pid" 2>/dev/null || true
   exit 1
 fi
+touch /tmp/model-ready
 wait "$server_pid"
